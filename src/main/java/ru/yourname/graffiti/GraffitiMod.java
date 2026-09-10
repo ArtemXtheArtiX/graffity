@@ -1,0 +1,16 @@
+package ru.yourname.graffiti;
+
+import net.fabricmc.api.ModInitializer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+public class GraffitiMod implements ModInitializer {
+	public static final String MOD_ID = "graffity";
+	public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
+
+	@Override
+	public void onInitialize() {
+		LOGGER.info("Graffiti Mod initialized!");
+		GraffitiConfig.load();
+	}
+}
