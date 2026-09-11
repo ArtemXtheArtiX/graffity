@@ -21,11 +21,12 @@ public class GraffitiClient implements ClientModInitializer {
 
     @Override
     public void onInitializeClient() {
+        // Клавиша для открытия меню (G)
         keyOpenManager = KeyBindingHelper.registerKeyBinding(new KeyBinding(
             "key.graffity.open_manager", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_G, CATEGORY
         ));
 
-        // Клавиша для мгновенного нанесения на блок, на который смотрит игрок (по умолчанию V)
+        // Клавиша для мгновенного нанесения граффити (V)
         keyPlaceGraffiti = KeyBindingHelper.registerKeyBinding(new KeyBinding(
             "key.graffity.place", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_V, CATEGORY
         ));
@@ -38,18 +39,18 @@ public class GraffitiClient implements ClientModInitializer {
             }
             
             if (client.currentScreen == null && client.player != null && client.world != null) {
-                // Открытие меню
+                // 1. Открытие меню
                 if (keyOpenManager.wasPressed()) {
                     client.setScreen(new GuiGraffitiManager());
                 }
                 
-                // Размещение граффити
+                // 2. Размещение граффити
                 if (keyPlaceGraffiti.wasPressed()) {
                     if (GraffitiConfig.lastImagePath == null || GraffitiConfig.lastImagePath.trim().isEmpty()) {
                         return; 
                     }
                     
-                    // Рейкаст на 5 блоков
+                    // Пускаем луч на 5 блоков
                     HitResult hit = client.player.raycast(5.0, 0.0f, false);
                     if (hit instanceof BlockHitResult blockHit && blockHit.getType() == HitResult.Type.BLOCK) {
                         Direction side = blockHit.getSide();
@@ -59,7 +60,7 @@ public class GraffitiClient implements ClientModInitializer {
                             side, 
                             GraffitiConfig.lastImagePath, 
                             GraffitiConfig.defaultBlockSize, 
-                            GraffitiConfig.defaultTextureResolution, 
+                            GraffitiConfig.getTargetResolution(), // ИСПРАВЛЕНО: используем метод вычисления целевого разрешения
                             0, // 0 = бесконечное время жизни
                             client.player.getUuid()
                         );
