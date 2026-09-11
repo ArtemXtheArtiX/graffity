@@ -1,6 +1,7 @@
 package ru.yourname.client;
 
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext;
+import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
 import net.minecraft.client.render.*;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.util.Identifier;
@@ -27,7 +28,8 @@ public class GraffitiRenderer {
 			matrices.translate(g.pos.getX() - cameraPos.x, g.pos.getY() - cameraPos.y, g.pos.getZ() - cameraPos.z);
 			applySideTransform(matrices, g.side);
 
-			VertexConsumer vertexConsumer = consumers.getBuffer(RenderLayer.getEntityTranslucent(texture));
+			// ИСПРАВЛЕНО: используем RenderLayers вместо RenderLayer
+			VertexConsumer vertexConsumer = consumers.getBuffer(RenderLayers.getEntityTranslucent(texture));
 			float offset = (g.blockSize - 1) / 2.0f;
 			float min = -offset;
 			float max = 1.0f + offset;
