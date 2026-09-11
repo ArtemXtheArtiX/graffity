@@ -12,9 +12,9 @@ public class GraffitiRenderer {
     public static void onRenderWorldLast(WorldRenderContext context) {
         if (GraffitiManager.getAll().isEmpty()) return;
 
-        // ИСПРАВЛЕНО: новые методы получения данных из контекста в 1.21.11
         MatrixStack matrices = context.matrices();
-        Vec3d cameraPos = context.worldState().camera().getCameraPos();
+        // ИСПРАВЛЕНО: правильный путь получения позиции камеры в 1.21.11
+        Vec3d cameraPos = context.gameRenderer().getCamera().getCameraPos();
         VertexConsumerProvider consumers = context.consumers();
 
         for (var entry : GraffitiManager.getAll().entrySet()) {
@@ -28,7 +28,6 @@ public class GraffitiRenderer {
             matrices.translate(g.pos.getX() - cameraPos.x, g.pos.getY() - cameraPos.y, g.pos.getZ() - cameraPos.z);
             applySideTransform(matrices, g.side);
 
-            // ИСПРАВЛЕНО: RenderLayers.entityTranslucent (актуальный метод)
             VertexConsumer vertexConsumer = consumers.getBuffer(RenderLayers.entityTranslucent(texture));
             float offset = (g.blockSize - 1) / 2.0f;
             float min = -offset;
