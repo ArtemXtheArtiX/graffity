@@ -45,34 +45,31 @@ public class GraffitiRenderer {
     private static void applySideTransform(MatrixStack matrices, Direction side) {
         float off = 0.001f;
         switch (side) {
-            case DOWN:
+            case DOWN:  // Пол: смотрим вниз, текстура должна смотреть ВВЕРХ (+Y)
                 matrices.translate(0.5, -off, 0.5);
-                // ИСПРАВЛЕНО: изменено с -90 на 90, чтобы текстура на полу не была перевернута как на потолке
+                matrices.multiply(RotationAxis.POSITIVE_X.rotationDegrees(-90));
+                break;
+            case UP:    // Потолок: смотрим вверх, текстура должна смотреть ВНИЗ (-Y)
+                matrices.translate(0.5, 1 + off, 0.5);
                 matrices.multiply(RotationAxis.POSITIVE_X.rotationDegrees(90));
                 break;
-            case UP:
-                matrices.translate(0.5, 1 + off, 0.5);
-                matrices.multiply(RotationAxis.POSITIVE_X.rotationDegrees(-90)); // Симметрично исправлено для потолка
-                break;
-            case NORTH:
+            case NORTH: // Север: смотрим на -Z
                 matrices.translate(0.5, 0.5, -off);
-                matrices.multiply(RotationAxis.POSITIVE_Z.rotationDegrees(-180));
+                matrices.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(180));
                 break;
-            case SOUTH:
+            case SOUTH: // Юг: смотрим на +Z (по умолчанию)
                 matrices.translate(0.5, 0.5, 1 + off);
-                matrices.multiply(RotationAxis.POSITIVE_X.rotationDegrees(180));
                 break;
-            case WEST:
+            case WEST:  // Запад: смотрим на -X
                 matrices.translate(-off, 0.5, 0.5);
-                matrices.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(-90));
-                matrices.multiply(RotationAxis.POSITIVE_X.rotationDegrees(180));
-                break;
-            case EAST:
-                matrices.translate(1 + off, 0.5, 0.5);
                 matrices.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(90));
-                matrices.multiply(RotationAxis.POSITIVE_X.rotationDegrees(180));
+                break;
+            case EAST:  // Восток: смотрим на +X
+                matrices.translate(1 + off, 0.5, 0.5);
+                matrices.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(-90));
                 break;
         }
+        // Центрируем квад относительно блока
         matrices.translate(-0.5, -0.5, 0);
     }
 }
