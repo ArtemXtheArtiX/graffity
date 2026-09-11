@@ -27,6 +27,7 @@ public class TextField {
 	
 	public int originalWidth = 0, originalHeight = 0;
 	public boolean keepAspect = false;
+	private final boolean isPreview; // НОВОЕ: флаг режима предпросмотра
 
 	private Identifier textureId;
 	private List<Identifier> gifTextureIds;
@@ -35,9 +36,12 @@ public class TextField {
 	private long lastFrameTime = 0;
 	private boolean isLoaded = false;
 
-	public TextField(int x, int y, int width, int height, String urlOrPath, boolean isGif) {
+	// ОБНОВЛЕНО: добавлен параметр isPreview
+	public TextField(int x, int y, int width, int height, String urlOrPath, boolean isGif, boolean isPreview) {
 		this.x = x; this.y = y; this.width = width; this.height = height;
-		this.imageUrlOrPath = urlOrPath; this.isGif = isGif;
+		this.imageUrlOrPath = urlOrPath; 
+		this.isGif = isGif;
+		this.isPreview = isPreview;
 		loadImageAsync();
 	}
 
@@ -76,59 +80,90 @@ public class TextField {
 		ImageReader reader = ImageIO.getImageReadersByFormatName("gif").next();
 		reader.setInput(iis);
 		int numFrames = reader.getNumImages(true);
+		
 		MinecraftClient.getInstance().execute(() -> {
-			gifTextureIds = new ArrayList<>(); 
-			frameDelays = new ArrayList<>();
-			for (int i = 0; i < numFrames; i++) {
-				try {
-					java.awt.image.BufferedImage bImg = reader.read(i);
-					NativeImage originalImg = NativeImage.read(new java.io.ByteArrayOutputStream() {{ 
-						ImageIO.write(bImg, "png", this); 
+			try {
+				if (isPreview) {
+					// ОПТИМИЗАЦИЯ: для предпросмотра загружаем ТОЛЬКО первый кадр как статичную картинку
+					java.awt.image.BufferedImage bImg = reader.read(0);
+					originalWidth = bImg.getWidth();
+					originalHeight = bImg.getHeight();
+					
+					NativeImage originalImg = NativeImage.read(new java.io.ByteArrayOutputStream() {{
+						ImageIO.write(bImg, "png", this);
 					}}.toByteArray());
 					
-					if (i == 0) {
-						originalWidth = originalImg.getWidth();
-						originalHeight = originalImg.getHeight();
-					}
-					
-					final NativeImage finalImg;
-					if (originalImg.getWidth() > MAX_DIMENSION || originalImg.getHeight() > MAX_DIMENSION) {
-						finalImg = resizeImage(originalImg, MAX_DIMENSION, MAX_DIMENSION);
+					NativeImage finalImg;
+					int maxDim = Math.max(originalImg.getWidth(), originalImg.getHeight());
+					int targetRes = 512; // Ограничиваем предпросмотр 512px для максимальной производительности
+					if (maxDim > targetRes) {
+						finalImg = resizeImage(originalImg, targetRes, targetRes);
 						originalImg.close();
 					} else {
 						finalImg = originalImg;
 					}
 					
 					NativeImageBackedTexture tex = new NativeImageBackedTexture(() -> "graffity", finalImg);
-					Identifier id = Identifier.of("graffity", "preview_gif_" + imageUrlOrPath.hashCode() + "_" + i);
-					MinecraftClient.getInstance().getTextureManager().registerTexture(id, tex);
-					gifTextureIds.add(id); 
+					textureId = Identifier.of("graffity", "preview_" + imageUrlOrPath.hashCode());
+					MinecraftClient.getInstance().getTextureManager().registerTexture(textureId, tex);
 					
-					// ИСПРАВЛЕНО: Чтение задержки кадра из метаданных GIF
-					int delay = 100;
-					try {
-						javax.imageio.metadata.IIOMetadata meta = reader.getImageMetadata(i);
-						if ("javax_imageio_gif_image_1.0".equals(meta.getNativeMetadataFormatName())) {
-							org.w3c.dom.Node tree = meta.getAsTree(meta.getNativeMetadataFormatName());
-							for (int j = 0; j < tree.getChildNodes().getLength(); j++) {
-								org.w3c.dom.Node node = tree.getChildNodes().item(j);
-								if ("GraphicControlExtension".equals(node.getNodeName())) {
-									for (int k = 0; k < node.getChildNodes().getLength(); k++) {
-										org.w3c.dom.Node attr = node.getChildNodes().item(k);
-										if ("delayTime".equals(attr.getNodeName())) {
-											delay = Integer.parseInt(attr.getAttributes().getNamedItem("value").getNodeValue()) * 10;
+					this.isGif = false; // Принудительно отключаем анимацию для предпросмотра
+				} else {
+					// Полная загрузка GIF для реального размещения в мире
+					gifTextureIds = new ArrayList<>();
+					frameDelays = new ArrayList<>();
+					for (int i = 0; i < numFrames; i++) {
+						java.awt.image.BufferedImage bImg = reader.read(i);
+						if (i == 0) {
+							originalWidth = bImg.getWidth();
+							originalHeight = bImg.getHeight();
+						}
+						
+						NativeImage originalImg = NativeImage.read(new java.io.ByteArrayOutputStream() {{
+							ImageIO.write(bImg, "png", this);
+						}}.toByteArray());
+
+						NativeImage finalImg;
+						int maxDim = Math.max(originalImg.getWidth(), originalImg.getHeight());
+						int targetRes = 1024;
+						if (maxDim > targetRes) {
+							finalImg = resizeImage(originalImg, targetRes, targetRes);
+							originalImg.close();
+						} else {
+							finalImg = originalImg;
+						}
+
+						NativeImageBackedTexture tex = new NativeImageBackedTexture(() -> "graffity", finalImg);
+						Identifier loc = Identifier.of("graffity", "graffiti_gif_" + imageUrlOrPath.hashCode() + "_" + i);
+						MinecraftClient.getInstance().getTextureManager().registerTexture(loc, tex);
+						gifTextureIds.add(loc);
+						
+						int delay = 100;
+						try {
+							javax.imageio.metadata.IIOMetadata meta = reader.getImageMetadata(i);
+							if ("javax_imageio_gif_image_1.0".equals(meta.getNativeMetadataFormatName())) {
+								org.w3c.dom.Node tree = meta.getAsTree(meta.getNativeMetadataFormatName());
+								for (int j = 0; j < tree.getChildNodes().getLength(); j++) {
+									org.w3c.dom.Node node = tree.getChildNodes().item(j);
+									if ("GraphicControlExtension".equals(node.getNodeName())) {
+										for (int k = 0; k < node.getChildNodes().getLength(); k++) {
+											org.w3c.dom.Node attr = node.getChildNodes().item(k);
+											if ("delayTime".equals(attr.getNodeName())) {
+												delay = Integer.parseInt(attr.getAttributes().getNamedItem("value").getNodeValue()) * 10;
+											}
 										}
 									}
 								}
 							}
-						}
-					} catch (Exception e) {}
-					frameDelays.add(Math.max(50, delay));
-				} catch (Exception e) { 
-					GraffitiMod.LOGGER.warn("Skipped frame " + i); 
+						} catch (Exception e) {}
+						frameDelays.add(Math.max(50, delay));
+					}
 				}
+			} catch (Exception e) {
+				GraffitiMod.LOGGER.warn("Failed to load GIF: " + imageUrlOrPath, e);
+			} finally {
+				reader.dispose();
 			}
-			reader.dispose();
 			if (keepAspect && originalWidth > 0 && originalHeight > 0) adjustSizeToAspect();
 		});
 	}
