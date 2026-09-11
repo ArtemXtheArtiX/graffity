@@ -43,18 +43,44 @@ public class GraffitiManager {
 		}).start();
 	}
 
+	// ВОССТАНОВЛЕНА ОРИГИНАЛЬНАЯ ЛОГИКА ИЗ 1.12.2:
+	// Рисуем картинку по центру прозрачного квадратного холста.
+	// Это гарантирует, что текстура всегда квадратная, нет артефактов, 
+	// а размеры 1x1, 2x2, 3x3 масштабируют её от центра идеально!
+	private static NativeImage prepareImage(BufferedImage original, int targetSize) {
+		int w = original.getWidth();
+		int h = original.getHeight();
+		
+		BufferedImage canvas = new BufferedImage(targetSize, targetSize, BufferedImage.TYPE_INT_ARGB);
+		java.awt.Graphics2D g = canvas.createGraphics();
+		g.setComposite(java.awt.AlphaComposite.Clear);
+		g.fillRect(0, 0, targetSize, targetSize);
+		g.setComposite(java.awt.AlphaComposite.SrcOver);
+		
+		double scale = Math.min((double) targetSize / w, (double) targetSize / h);
+		int drawW = (int) (w * scale);
+		int drawH = (int) (h * scale);
+		int x = (targetSize - drawW) / 2;
+		int y = (targetSize - drawH) / 2;
+		
+		g.drawImage(original, x, y, drawW, drawH, null);
+		g.dispose();
+		
+		try {
+			ByteArrayOutputStream baos = new ByteArrayOutputStream();
+			ImageIO.write(canvas, "png", baos);
+			return NativeImage.read(baos.toByteArray());
+		} catch (Exception e) {
+			throw new RuntimeException(e);
+		}
+	}
+
 	private static void loadStaticAsync(UUID id, Graffiti g, InputStream is) throws Exception {
-		NativeImage originalImg = NativeImage.read(is);
-		int maxDim = Math.max(originalImg.getWidth(), originalImg.getHeight());
+		BufferedImage bImg = ImageIO.read(is);
+		if (bImg == null) return;
 		int targetRes = Math.min(g.textureResolution, 1024);
 		
-		final NativeImage finalImg;
-		if (maxDim > targetRes) {
-			finalImg = resizeImage(originalImg, targetRes, targetRes);
-			originalImg.close();
-		} else {
-			finalImg = originalImg;
-		}
+		final NativeImage finalImg = prepareImage(bImg, targetRes);
 
 		MinecraftClient.getInstance().execute(() -> {
 			NativeImageBackedTexture tex = new NativeImageBackedTexture(() -> "graffity", finalImg);
@@ -78,25 +104,8 @@ public class GraffitiManager {
 			for (int i = 0; i < numFrames; i++) {
 				try {
 					BufferedImage bImg = reader.read(i);
-					
-					// ИСПРАВЛЕНО: гарантируем корректный формат с альфа-каналом, чтобы гифки не были "поломанными"
-					BufferedImage argbImg = new BufferedImage(
-						bImg.getWidth(), bImg.getHeight(), BufferedImage.TYPE_INT_ARGB
-					);
-					argbImg.createGraphics().drawImage(bImg, 0, 0, null);
-					
-					NativeImage originalImg = NativeImage.read(new ByteArrayOutputStream() {{
-						ImageIO.write(argbImg, "png", this);
-					}}.toByteArray());
-
-					NativeImage finalImg;
-					int maxDim = Math.max(originalImg.getWidth(), originalImg.getHeight());
-					if (maxDim > targetRes) {
-						finalImg = resizeImage(originalImg, targetRes, targetRes);
-						originalImg.close();
-					} else {
-						finalImg = originalImg;
-					}
+					// Применяем квадратный холст к каждому кадру гифки
+					NativeImage finalImg = prepareImage(bImg, targetRes);
 
 					NativeImageBackedTexture tex = new NativeImageBackedTexture(() -> "graffity", finalImg);
 					Identifier loc = Identifier.of("graffity", "graffiti_gif_" + id + "_" + i);
@@ -129,23 +138,6 @@ public class GraffitiManager {
 			reader.dispose();
 			animatedData.put(id, new AnimatedGraffitiData(frames, delays));
 		});
-	}
-
-	private static NativeImage resizeImage(NativeImage img, int maxW, int maxH) {
-		float scaleX = (float) maxW / img.getWidth();
-		float scaleY = (float) maxH / img.getHeight();
-		float scale = Math.min(scaleX, scaleY);
-		if (scale >= 1.0f) return img;
-
-		int newW = (int) (img.getWidth() * scale);
-		int newH = (int) (img.getHeight() * scale);
-		NativeImage resized = new NativeImage(NativeImage.Format.RGBA, newW, newH, false);
-		for (int y = 0; y < newH; y++) {
-			for (int x = 0; x < newW; x++) {
-				resized.setColorArgb(x, y, img.getColorArgb((int)(x / scale), (int)(y / scale)));
-			}
-		}
-		return resized;
 	}
 
 	public static void removeByOwner(UUID owner) {
