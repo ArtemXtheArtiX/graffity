@@ -13,7 +13,6 @@ public class GraffitiRenderer {
         if (GraffitiManager.getAll().isEmpty()) return;
 
         MatrixStack matrices = context.matrices();
-        // ИСПРАВЛЕНО: правильный путь получения позиции камеры в 1.21.11
         Vec3d cameraPos = context.gameRenderer().getCamera().getCameraPos();
         VertexConsumerProvider consumers = context.consumers();
 
@@ -26,6 +25,8 @@ public class GraffitiRenderer {
 
             matrices.push();
             matrices.translate(g.pos.getX() - cameraPos.x, g.pos.getY() - cameraPos.y, g.pos.getZ() - cameraPos.z);
+            
+            // ОРИГИНАЛЬНАЯ ЛОГИКА ПОВОРОТА И СМЕЩЕНИЯ ПО ГРАНЯМ
             applySideTransform(matrices, g.side);
 
             VertexConsumer vertexConsumer = consumers.getBuffer(RenderLayers.entityTranslucent(texture));
@@ -33,6 +34,7 @@ public class GraffitiRenderer {
             float min = -offset;
             float max = 1.0f + offset;
 
+            // Рисуем квад (оригинальные UV координаты)
             vertexConsumer.vertex(matrices.peek().getPositionMatrix(), min, max, 0.0f).color(255, 255, 255, 255).texture(0.0f, 1.0f).overlay(OverlayTexture.DEFAULT_UV).light(15728880).normal(matrices.peek(), 0.0f, 0.0f, 1.0f);
             vertexConsumer.vertex(matrices.peek().getPositionMatrix(), max, max, 0.0f).color(255, 255, 255, 255).texture(1.0f, 1.0f).overlay(OverlayTexture.DEFAULT_UV).light(15728880).normal(matrices.peek(), 0.0f, 0.0f, 1.0f);
             vertexConsumer.vertex(matrices.peek().getPositionMatrix(), max, min, 0.0f).color(255, 255, 255, 255).texture(1.0f, 0.0f).overlay(OverlayTexture.DEFAULT_UV).light(15728880).normal(matrices.peek(), 0.0f, 0.0f, 1.0f);
@@ -43,15 +45,34 @@ public class GraffitiRenderer {
     }
 
     private static void applySideTransform(MatrixStack matrices, Direction side) {
-        float off = 0.005f;
+        float off = 0.005f; // Отступ от блока, чтобы не было z-fighting (мерцания)
         switch (side) {
-            case DOWN:  matrices.translate(0.5, -off, 0.5); matrices.multiply(RotationAxis.POSITIVE_X.rotationDegrees(-90)); break;
-            case UP:    matrices.translate(0.5, 1 + off, 0.5); matrices.multiply(RotationAxis.POSITIVE_X.rotationDegrees(90)); break;
-            case NORTH: matrices.translate(0.5, 0.5, -off); matrices.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(180)); break;
-            case SOUTH: matrices.translate(0.5, 0.5, 1 + off); break;
-            case WEST:  matrices.translate(-off, 0.5, 0.5); matrices.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(-90)); break;
-            case EAST:  matrices.translate(1 + off, 0.5, 0.5); matrices.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(90)); break;
+            case DOWN:
+                matrices.translate(0.5, -off, 0.5);
+                matrices.multiply(RotationAxis.POSITIVE_X.rotationDegrees(-90));
+                break;
+            case UP:
+                matrices.translate(0.5, 1 + off, 0.5);
+                matrices.multiply(RotationAxis.POSITIVE_X.rotationDegrees(90));
+                break;
+            case NORTH:
+                matrices.translate(0.5, 0.5, -off);
+                matrices.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(180));
+                break;
+            case SOUTH:
+                matrices.translate(0.5, 0.5, 1 + off);
+                // Поворот не нужен, смотрит прямо на камеру
+                break;
+            case WEST:
+                matrices.translate(-off, 0.5, 0.5);
+                matrices.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(-90));
+                break;
+            case EAST:
+                matrices.translate(1 + off, 0.5, 0.5);
+                matrices.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(90));
+                break;
         }
+        // Сдвигаем на -0.5, чтобы центр квада совпадал с центром блока (как в оригинале)
         matrices.translate(-0.5, -0.5, 0);
     }
 }
