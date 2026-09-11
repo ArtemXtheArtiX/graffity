@@ -11,7 +11,8 @@ public class GraffitiRenderer {
     public static void renderAll(MatrixStack matrices, Camera camera, VertexConsumerProvider consumers) {
         if (GraffitiManager.getAll().isEmpty()) return;
 
-        Vec3d cameraPos = camera.getPos();
+        // ИСПРАВЛЕНО: getCameraPos() вместо getPos()
+        Vec3d cameraPos = camera.getCameraPos();
 
         for (var entry : GraffitiManager.getAll().entrySet()) {
             ru.yourname.Graffiti g = entry.getValue();
@@ -24,8 +25,8 @@ public class GraffitiRenderer {
             matrices.translate(g.pos.getX() - cameraPos.x, g.pos.getY() - cameraPos.y, g.pos.getZ() - cameraPos.z);
             applySideTransform(matrices, g.side);
 
-            // ИСПРАВЛЕНО: используем RenderLayers вместо RenderLayer
-            VertexConsumer vertexConsumer = consumers.getBuffer(RenderLayers.getEntityTranslucent(texture));
+            // ИСПРАВЛЕНО: RenderLayers.entityTranslucent вместо getEntityTranslucent
+            VertexConsumer vertexConsumer = consumers.getBuffer(RenderLayers.entityTranslucent(texture));
             float offset = (g.blockSize - 1) / 2.0f;
             float min = -offset;
             float max = 1.0f + offset;
