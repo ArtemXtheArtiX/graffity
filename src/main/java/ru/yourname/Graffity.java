@@ -1,30 +1,34 @@
 package ru.yourname;
 
-import net.fabricmc.api.ModInitializer;
+import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Direction;
+import java.util.UUID;
 
-import net.minecraft.util.Identifier;
+public class Graffiti {
+	public final UUID uuid;
+	public BlockPos pos;
+	public Direction side;
+	public String imagePath;
+	public int blockSize;
+	public int textureResolution;
+	public long created;
+	public int durationSec;
+	public UUID ownerUUID;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-public class Graffity implements ModInitializer {
-	public static final String MOD_ID = "graffity";
-
-	// This logger is used to write text to the console and the log file.
-	// It is considered best practice to use your mod id as the logger's name.
-	// That way, it's clear which mod wrote info, warnings, and errors.
-	public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
-
-	@Override
-	public void onInitialize() {
-		// This code runs as soon as Minecraft is in a mod-load-ready state.
-		// However, some things (like resources) may still be uninitialized.
-		// Proceed with mild caution.
-
-		LOGGER.info("Hello Fabric world!");
+	public Graffiti(BlockPos pos, Direction side, String imagePath, int blockSize, int textureResolution, int durationSec, UUID ownerUUID) {
+		this.uuid = UUID.randomUUID();
+		this.pos = pos;
+		this.side = side;
+		this.imagePath = imagePath;
+		this.blockSize = blockSize;
+		this.textureResolution = textureResolution;
+		this.durationSec = durationSec;
+		this.created = System.currentTimeMillis();
+		this.ownerUUID = ownerUUID;
 	}
 
-	public static Identifier id(String path) {
-		return Identifier.of(MOD_ID, path);
+	public boolean isExpired() {
+		if (durationSec <= 0) return false;
+		return (System.currentTimeMillis() - created) > (durationSec * 1000L);
 	}
 }
