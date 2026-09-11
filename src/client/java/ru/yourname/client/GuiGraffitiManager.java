@@ -29,7 +29,6 @@ public class GuiGraffitiManager extends Screen {
         int leftWidth = this.width / 2;
         int rightX = leftWidth + 10;
 
-        // Поле ввода (слева)
         urlField = new TextFieldWidget(this.textRenderer, 20, 60, leftWidth - 30, 20, Text.literal("URL or File Path"));
         urlField.setMaxLength(1000);
         urlField.setChangedListener(this::onUrlChanged);
@@ -37,9 +36,7 @@ public class GuiGraffitiManager extends Screen {
         this.addDrawableChild(urlField);
         this.setInitialFocus(urlField);
 
-        // Кнопки действий (слева)
         this.addDrawableChild(ButtonWidget.builder(Text.literal("Open Drag-and-Drop Window"), btn -> {
-            // В 1.21+ нативный D&D работает прямо в окне игры, но оставим кнопку для совместимости привычек
             hintMessage = "Drag & Drop directly into this window!";
         }).dimensions(20, 90, leftWidth - 30, 20).build());
 
@@ -50,7 +47,6 @@ public class GuiGraffitiManager extends Screen {
         }).dimensions(20, 120, leftWidth - 30, 20).build();
         this.addDrawableChild(btnSelect);
 
-        // Кнопки размера (справа)
         int sizeBtnW = 60, sizeBtnH = 20, sizeY = 80;
         btn1x1 = ButtonWidget.builder(Text.literal("1x1"), b -> setBlockSize(1)).dimensions(rightX, sizeY, sizeBtnW, sizeBtnH).build();
         btn2x2 = ButtonWidget.builder(Text.literal("2x2"), b -> setBlockSize(2)).dimensions(rightX + sizeBtnW + 5, sizeY, sizeBtnW, sizeBtnH).build();
@@ -59,7 +55,6 @@ public class GuiGraffitiManager extends Screen {
         this.addDrawableChild(btn2x2);
         this.addDrawableChild(btn3x3);
 
-        // Кнопки масштаба (справа)
         int scaleY = 120;
         btn50 = ButtonWidget.builder(Text.literal("50%"), b -> setScale(50)).dimensions(rightX, scaleY, sizeBtnW, sizeBtnH).build();
         btn100 = ButtonWidget.builder(Text.literal("100%"), b -> setScale(100)).dimensions(rightX + sizeBtnW + 5, scaleY, sizeBtnW, sizeBtnH).build();
@@ -76,10 +71,11 @@ public class GuiGraffitiManager extends Screen {
         } else {
             hintMessage = "";
             boolean isGif = text.toLowerCase().endsWith(".gif");
-            // Предпросмотр по центру левой части
             int previewSize = 150;
             int leftWidth = this.width / 2;
-            previewField = new TextField((leftWidth - previewSize) / 2, 160, previewSize, previewSize, text, isGif);
+            
+            // ОБНОВЛЕНО: передаем true в качестве последнего параметра (isPreview)
+            previewField = new TextField((leftWidth - previewSize) / 2, 160, previewSize, previewSize, text, isGif, true);
             previewField.keepAspect = true;
         }
         updateButtons();
@@ -96,7 +92,6 @@ public class GuiGraffitiManager extends Screen {
         GraffitiConfig.defaultTextureResolution = GraffitiConfig.computeResolution(GraffitiConfig.defaultTextureResolution);
         GraffitiConfig.save();
         updateButtons();
-        // Обновляем предпросмотр с новым масштабом
         if (!urlField.getText().trim().isEmpty()) {
             onUrlChanged(urlField.getText());
         }
@@ -134,20 +129,17 @@ public class GuiGraffitiManager extends Screen {
         this.renderBackground(context, mouseX, mouseY, delta);
         
         int leftWidth = this.width / 2;
-        // Разделительная линия
         context.fill(leftWidth, 0, leftWidth + 1, this.height, 0xFFAAAAAA);
         
         context.drawCenteredTextWithShadow(this.textRenderer, Text.literal("Select Image"), leftWidth / 2, 10, 0xFFFFFF);
         context.drawCenteredTextWithShadow(this.textRenderer, Text.literal("Settings"), leftWidth + (this.width - leftWidth) / 2, 10, 0xFFFFFF);
 
-        // Рендер предпросмотра
         if (previewField != null) {
             previewField.render(context, false);
         } else if (!hintMessage.isEmpty() && !urlField.getText().trim().isEmpty()) {
             context.drawCenteredTextWithShadow(this.textRenderer, Text.literal("Preview not available"), leftWidth / 2, 180, 0xFF8888);
         }
 
-        // Отображение текущих настроек
         context.drawText(this.textRenderer, Text.literal("Scale: " + GraffitiConfig.scalePercent + "%"), leftWidth + 10, 100, 0xFFFFFF, false);
         context.drawText(this.textRenderer, Text.literal("Tex Res: " + GraffitiConfig.defaultTextureResolution), leftWidth + 10, 115, 0xFFFFFF, false);
 
