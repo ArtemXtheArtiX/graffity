@@ -29,7 +29,6 @@ public class GuiGraffitiManager extends Screen {
         int leftWidth = this.width / 2;
         int rightX = leftWidth + 10;
 
-        // 1. Кнопки настроек (справа)
         int sizeBtnW = 60, sizeBtnH = 20, sizeY = 80;
         btn1x1 = ButtonWidget.builder(Text.literal("1x1"), b -> setBlockSize(1)).dimensions(rightX, sizeY, sizeBtnW, sizeBtnH).build();
         btn2x2 = ButtonWidget.builder(Text.literal("2x2"), b -> setBlockSize(2)).dimensions(rightX + sizeBtnW + 5, sizeY, sizeBtnW, sizeBtnH).build();
@@ -44,20 +43,18 @@ public class GuiGraffitiManager extends Screen {
         this.addDrawableChild(btn50);
         this.addDrawableChild(btn100);
 
-        // 2. Поле ввода (слева)
         urlField = new TextFieldWidget(this.textRenderer, 20, 60, leftWidth - 30, 20, Text.literal("URL or File Path"));
         urlField.setMaxLength(1000);
         urlField.setChangedListener(this::onUrlChanged);
         this.addDrawableChild(urlField);
         this.setInitialFocus(urlField);
 
-        // 3. Инициализируем текст, чтобы обновить предпросмотр
         urlField.setText(GraffitiConfig.lastImagePath);
 
-        // 4. Кнопка сохранения (слева, под зоной дропа)
+        // СОХРАНЕНИЕ ПРОИСХОДИТ ТОЛЬКО ЗДЕСЬ
         btnSelect = ButtonWidget.builder(Text.literal("Select / Save"), btn -> {
             GraffitiConfig.lastImagePath = urlField.getText().trim();
-            GraffitiConfig.save(); // Сохраняем ВСЁ только здесь!
+            GraffitiConfig.save(); 
             close();
         }).dimensions(20, 135, leftWidth - 30, 20).build();
         this.addDrawableChild(btnSelect);
@@ -81,13 +78,11 @@ public class GuiGraffitiManager extends Screen {
 
     private void setBlockSize(int size) {
         GraffitiConfig.defaultBlockSize = size;
-        // ИСПРАВЛЕНО: НЕ сохраняем сразу, ждем кнопку Save
         updateButtons();
     }
 
     private void setScale(int percent) {
         GraffitiConfig.scalePercent = percent;
-        // ИСПРАВЛЕНО: НЕ сохраняем сразу, ждем кнопку Save
         updateButtons();
         if (!urlField.getText().trim().isEmpty()) {
             onUrlChanged(urlField.getText());
@@ -131,7 +126,6 @@ public class GuiGraffitiManager extends Screen {
         context.drawCenteredTextWithShadow(this.textRenderer, Text.literal("Select Image"), leftWidth / 2, 10, 0xFFFFFF);
         context.drawCenteredTextWithShadow(this.textRenderer, Text.literal("Settings"), leftWidth + (this.width - leftWidth) / 2, 10, 0xFFFFFF);
 
-        // НОВОЕ: Область Drag & Drop (высота 40px = ровно 2 кнопки)
         int dropX = 20;
         int dropY = 85;
         int dropW = leftWidth - 30;
@@ -144,7 +138,8 @@ public class GuiGraffitiManager extends Screen {
         context.fill(dropX, dropY, dropX + 1, dropY + dropH, borderColor);
         context.fill(dropX + dropW - 1, dropY, dropX + dropW, dropY + dropH, borderColor);
         
-        context.drawCenteredTextWithShadow(this.textRenderer, Text.literal(hintMessage), dropX + dropW / 2, dropY + dropH / 2 - 4, 0xFFFFFF);
+        // ИСПРАВЛЕНО: 0xFFFFFFFF вместо 0xFFFFFF для полной видимости текста
+        context.drawCenteredTextWithShadow(this.textRenderer, Text.literal(hintMessage), dropX + dropW / 2, dropY + dropH / 2 - 4, 0xFFFFFFFF);
 
         if (previewField != null) {
             previewField.render(context, false);
