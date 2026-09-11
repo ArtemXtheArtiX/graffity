@@ -6,16 +6,17 @@ import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderEvents;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.util.InputUtil;
-import net.minecraft.util.Identifier;
 import net.minecraft.util.hit.BlockHitResult;
+import net.minecraft.util.hit.HitResult;
 import net.minecraft.util.math.Direction;
+import net.minecraft.util.Identifier;
 import org.lwjgl.glfw.GLFW;
 import ru.yourname.Graffiti;
 import ru.yourname.GraffitiConfig;
 
 public class GraffitiClient implements ClientModInitializer {
     public static KeyBinding keyOpenManager;
-    public static KeyBinding keyPlace; // Новая клавиша для быстрого нанесения
+    public static KeyBinding keyPlaceGraffiti;
     public static final KeyBinding.Category CATEGORY = new KeyBinding.Category(Identifier.of("graffity", "category"));
 
     @Override
@@ -23,9 +24,9 @@ public class GraffitiClient implements ClientModInitializer {
         keyOpenManager = KeyBindingHelper.registerKeyBinding(new KeyBinding(
             "key.graffity.open_manager", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_G, CATEGORY
         ));
-        
-        // Клавиша V для быстрого нанесения граффити
-        keyPlace = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+
+        // Клавиша для мгновенного нанесения на блок, на который смотрит игрок (по умолчанию V)
+        keyPlaceGraffiti = KeyBindingHelper.registerKeyBinding(new KeyBinding(
             "key.graffity.place", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_V, CATEGORY
         ));
 
@@ -36,25 +37,30 @@ public class GraffitiClient implements ClientModInitializer {
                 GraffitiManager.tick();
             }
             
-            if (client.currentScreen == null && client.player != null) {
+            if (client.currentScreen == null && client.player != null && client.world != null) {
                 // Открытие меню
                 if (keyOpenManager.wasPressed()) {
                     client.setScreen(new GuiGraffitiManager());
-                } 
-                // Быстрое нанесение граффити
-                else if (keyPlace.wasPressed()) {
-                    BlockHitResult hit = (BlockHitResult) client.player.raycast(5.0, 0.0f, false);
-                    if (hit.getType() == net.minecraft.util.hit.HitResult.Type.BLOCK) {
-                        Direction side = hit.getSide();
+                }
+                
+                // Размещение граффити
+                if (keyPlaceGraffiti.wasPressed()) {
+                    if (GraffitiConfig.lastImagePath == null || GraffitiConfig.lastImagePath.trim().isEmpty()) {
+                        return; 
+                    }
+                    
+                    // Рейкаст на 5 блоков
+                    HitResult hit = client.player.raycast(5.0, 0.0f, false);
+                    if (hit instanceof BlockHitResult blockHit && blockHit.getType() == HitResult.Type.BLOCK) {
+                        Direction side = blockHit.getSide();
                         
-                        // Создаем граффити с текущими настройками из конфига
                         Graffiti g = new Graffiti(
-                            hit.getBlockPos(), 
+                            blockHit.getBlockPos(), 
                             side, 
                             GraffitiConfig.lastImagePath, 
                             GraffitiConfig.defaultBlockSize, 
                             GraffitiConfig.defaultTextureResolution, 
-                            0, // 0 = навсегда
+                            0, // 0 = бесконечное время жизни
                             client.player.getUuid()
                         );
                         
