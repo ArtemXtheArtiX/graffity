@@ -52,7 +52,7 @@ public class GraffitiRenderer {
                 break;
             case UP:
                 matrices.translate(0.5, 1 + off, 0.5);
-                matrices.multiply(RotationAxis.POSITIVE_X.rotationDegrees(90));
+                matrices.multiply(RotationAxis.POSITIVE_X.rotationDegrees(-90));
                 break;
             case NORTH:
                 matrices.translate(0.5, 0.5, -off);
