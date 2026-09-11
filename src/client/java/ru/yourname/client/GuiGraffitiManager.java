@@ -14,7 +14,7 @@ import java.util.List;
 public class GuiGraffitiManager extends Screen {
     private TextFieldWidget urlField;
     private GraffitiPreview previewField;
-    private String hintMessage = "Drag & Drop file here\n(or paste URL/path)";
+    private String hintMessage = "Drag & Drop file here";
 
     private ButtonWidget btn1x1, btn2x2, btn3x3;
     private ButtonWidget btn50, btn100;
@@ -29,6 +29,7 @@ public class GuiGraffitiManager extends Screen {
         int leftWidth = this.width / 2;
         int rightX = leftWidth + 10;
 
+        // 1. Кнопки настроек (справа)
         int sizeBtnW = 60, sizeBtnH = 20, sizeY = 80;
         btn1x1 = ButtonWidget.builder(Text.literal("1x1"), b -> setBlockSize(1)).dimensions(rightX, sizeY, sizeBtnW, sizeBtnH).build();
         btn2x2 = ButtonWidget.builder(Text.literal("2x2"), b -> setBlockSize(2)).dimensions(rightX + sizeBtnW + 5, sizeY, sizeBtnW, sizeBtnH).build();
@@ -43,30 +44,29 @@ public class GuiGraffitiManager extends Screen {
         this.addDrawableChild(btn50);
         this.addDrawableChild(btn100);
 
-        btnSelect = ButtonWidget.builder(Text.literal("Select / Save"), btn -> {
-            GraffitiConfig.lastImagePath = urlField.getText().trim();
-            GraffitiConfig.save();
-            close();
-        }).dimensions(20, 120, leftWidth - 30, 20).build();
-        this.addDrawableChild(btnSelect);
-
-        this.addDrawableChild(ButtonWidget.builder(Text.literal("Open Drag-and-Drop Window"), btn -> {
-            hintMessage = "Drag & Drop directly into this window!";
-        }).dimensions(20, 90, leftWidth - 30, 20).build());
-
+        // 2. Поле ввода (слева)
         urlField = new TextFieldWidget(this.textRenderer, 20, 60, leftWidth - 30, 20, Text.literal("URL or File Path"));
         urlField.setMaxLength(1000);
         urlField.setChangedListener(this::onUrlChanged);
         this.addDrawableChild(urlField);
         this.setInitialFocus(urlField);
 
+        // 3. Инициализируем текст, чтобы обновить предпросмотр
         urlField.setText(GraffitiConfig.lastImagePath);
+
+        // 4. Кнопка сохранения (слева, под зоной дропа)
+        btnSelect = ButtonWidget.builder(Text.literal("Select / Save"), btn -> {
+            GraffitiConfig.lastImagePath = urlField.getText().trim();
+            GraffitiConfig.save(); // Сохраняем ВСЁ только здесь!
+            close();
+        }).dimensions(20, 135, leftWidth - 30, 20).build();
+        this.addDrawableChild(btnSelect);
     }
 
     private void onUrlChanged(String text) {
         if (previewField != null) { previewField.cleanup(); previewField = null; }
         if (text.trim().isEmpty()) {
-            hintMessage = "Drag & Drop file here\n(or paste URL/path)";
+            hintMessage = "Drag & Drop file here";
         } else {
             hintMessage = "";
             boolean isGif = text.toLowerCase().endsWith(".gif");
@@ -81,14 +81,13 @@ public class GuiGraffitiManager extends Screen {
 
     private void setBlockSize(int size) {
         GraffitiConfig.defaultBlockSize = size;
-        GraffitiConfig.save();
+        // ИСПРАВЛЕНО: НЕ сохраняем сразу, ждем кнопку Save
         updateButtons();
     }
 
     private void setScale(int percent) {
         GraffitiConfig.scalePercent = percent;
-        GraffitiConfig.defaultTextureResolution = GraffitiConfig.computeResolution(GraffitiConfig.defaultTextureResolution);
-        GraffitiConfig.save();
+        // ИСПРАВЛЕНО: НЕ сохраняем сразу, ждем кнопку Save
         updateButtons();
         if (!urlField.getText().trim().isEmpty()) {
             onUrlChanged(urlField.getText());
@@ -124,8 +123,6 @@ public class GuiGraffitiManager extends Screen {
 
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        // ИСПРАВЛЕНО: Убираем renderBackground, который вызывает краш с Sodium/Blur.
-        // Рисуем полупрозрачный фон вручную.
         context.fill(0, 0, this.width, this.height, 0x60000000);
         
         int leftWidth = this.width / 2;
@@ -134,14 +131,29 @@ public class GuiGraffitiManager extends Screen {
         context.drawCenteredTextWithShadow(this.textRenderer, Text.literal("Select Image"), leftWidth / 2, 10, 0xFFFFFF);
         context.drawCenteredTextWithShadow(this.textRenderer, Text.literal("Settings"), leftWidth + (this.width - leftWidth) / 2, 10, 0xFFFFFF);
 
+        // НОВОЕ: Область Drag & Drop (высота 40px = ровно 2 кнопки)
+        int dropX = 20;
+        int dropY = 85;
+        int dropW = leftWidth - 30;
+        int dropH = 40;
+        
+        context.fill(dropX, dropY, dropX + dropW, dropY + dropH, 0x30888888);
+        int borderColor = 0xFF55FF55;
+        context.fill(dropX, dropY, dropX + dropW, dropY + 1, borderColor);
+        context.fill(dropX, dropY + dropH - 1, dropX + dropW, dropY + dropH, borderColor);
+        context.fill(dropX, dropY, dropX + 1, dropY + dropH, borderColor);
+        context.fill(dropX + dropW - 1, dropY, dropX + dropW, dropY + dropH, borderColor);
+        
+        context.drawCenteredTextWithShadow(this.textRenderer, Text.literal(hintMessage), dropX + dropW / 2, dropY + dropH / 2 - 4, 0xFFFFFF);
+
         if (previewField != null) {
             previewField.render(context, false);
-        } else if (!hintMessage.isEmpty() && !urlField.getText().trim().isEmpty()) {
+        } else if (!hintMessage.equals("Drag & Drop file here") && !urlField.getText().trim().isEmpty()) {
             context.drawCenteredTextWithShadow(this.textRenderer, Text.literal("Preview not available"), leftWidth / 2, 180, 0xFF8888);
         }
 
         context.drawText(this.textRenderer, Text.literal("Scale: " + GraffitiConfig.scalePercent + "%"), leftWidth + 10, 100, 0xFFFFFF, false);
-        context.drawText(this.textRenderer, Text.literal("Tex Res: " + GraffitiConfig.defaultTextureResolution), leftWidth + 10, 115, 0xFFFFFF, false);
+        context.drawText(this.textRenderer, Text.literal("Tex Res: " + GraffitiConfig.getTargetResolution()), leftWidth + 10, 115, 0xFFFFFF, false);
 
         urlField.render(context, mouseX, mouseY, delta);
         super.render(context, mouseX, mouseY, delta);
