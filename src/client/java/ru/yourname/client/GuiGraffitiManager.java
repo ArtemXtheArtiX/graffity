@@ -13,8 +13,7 @@ import java.util.List;
 
 public class GuiGraffitiManager extends Screen {
     private TextFieldWidget urlField;
-    // ИСПРАВЛЕНО: используем уникальное имя GraffitiPreview вместо TextField
-    private GraffitiPreview previewField; 
+    private GraffitiPreview previewField;
     private String hintMessage = "Drag & Drop file here\n(or paste URL/path)";
 
     private ButtonWidget btn1x1, btn2x2, btn3x3;
@@ -30,24 +29,7 @@ public class GuiGraffitiManager extends Screen {
         int leftWidth = this.width / 2;
         int rightX = leftWidth + 10;
 
-        urlField = new TextFieldWidget(this.textRenderer, 20, 60, leftWidth - 30, 20, Text.literal("URL or File Path"));
-        urlField.setMaxLength(1000);
-        urlField.setChangedListener(this::onUrlChanged);
-        urlField.setText(GraffitiConfig.lastImagePath);
-        this.addDrawableChild(urlField);
-        this.setInitialFocus(urlField);
-
-        this.addDrawableChild(ButtonWidget.builder(Text.literal("Open Drag-and-Drop Window"), btn -> {
-            hintMessage = "Drag & Drop directly into this window!";
-        }).dimensions(20, 90, leftWidth - 30, 20).build());
-
-        btnSelect = ButtonWidget.builder(Text.literal("Select / Save"), btn -> {
-            GraffitiConfig.lastImagePath = urlField.getText().trim();
-            GraffitiConfig.save();
-            close();
-        }).dimensions(20, 120, leftWidth - 30, 20).build();
-        this.addDrawableChild(btnSelect);
-
+        // 1. Инициализируем кнопки ПЕРВЫМИ, чтобы onUrlChanged не вызвал NPE
         int sizeBtnW = 60, sizeBtnH = 20, sizeY = 80;
         btn1x1 = ButtonWidget.builder(Text.literal("1x1"), b -> setBlockSize(1)).dimensions(rightX, sizeY, sizeBtnW, sizeBtnH).build();
         btn2x2 = ButtonWidget.builder(Text.literal("2x2"), b -> setBlockSize(2)).dimensions(rightX + sizeBtnW + 5, sizeY, sizeBtnW, sizeBtnH).build();
@@ -62,7 +44,26 @@ public class GuiGraffitiManager extends Screen {
         this.addDrawableChild(btn50);
         this.addDrawableChild(btn100);
 
-        updateButtons();
+        btnSelect = ButtonWidget.builder(Text.literal("Select / Save"), btn -> {
+            GraffitiConfig.lastImagePath = urlField.getText().trim();
+            GraffitiConfig.save();
+            close();
+        }).dimensions(20, 120, leftWidth - 30, 20).build();
+        this.addDrawableChild(btnSelect);
+
+        this.addDrawableChild(ButtonWidget.builder(Text.literal("Open Drag-and-Drop Window"), btn -> {
+            hintMessage = "Drag & Drop directly into this window!";
+        }).dimensions(20, 90, leftWidth - 30, 20).build());
+
+        // 2. Инициализируем поле ввода
+        urlField = new TextFieldWidget(this.textRenderer, 20, 60, leftWidth - 30, 20, Text.literal("URL or File Path"));
+        urlField.setMaxLength(1000);
+        urlField.setChangedListener(this::onUrlChanged);
+        this.addDrawableChild(urlField);
+        this.setInitialFocus(urlField);
+
+        // 3. Устанавливаем текст ПОСЛЕ инициализации кнопок, чтобы триггер onUrlChanged был безопасен
+        urlField.setText(GraffitiConfig.lastImagePath);
     }
 
     private void onUrlChanged(String text) {
@@ -75,7 +76,6 @@ public class GuiGraffitiManager extends Screen {
             int previewSize = 150;
             int leftWidth = this.width / 2;
             
-            // ИСПРАВЛЕНО: создаем экземпляр GraffitiPreview
             previewField = new GraffitiPreview((leftWidth - previewSize) / 2, 160, previewSize, previewSize, text, isGif, true);
             previewField.keepAspect = true;
         }
@@ -99,11 +99,11 @@ public class GuiGraffitiManager extends Screen {
     }
 
     private void updateButtons() {
-        btn1x1.active = GraffitiConfig.defaultBlockSize != 1;
-        btn2x2.active = GraffitiConfig.defaultBlockSize != 2;
-        btn3x3.active = GraffitiConfig.defaultBlockSize != 3;
-        btn50.active = GraffitiConfig.scalePercent != 50;
-        btn100.active = GraffitiConfig.scalePercent != 100;
+        if (btn1x1 != null) btn1x1.active = GraffitiConfig.defaultBlockSize != 1;
+        if (btn2x2 != null) btn2x2.active = GraffitiConfig.defaultBlockSize != 2;
+        if (btn3x3 != null) btn3x3.active = GraffitiConfig.defaultBlockSize != 3;
+        if (btn50 != null) btn50.active = GraffitiConfig.scalePercent != 50;
+        if (btn100 != null) btn100.active = GraffitiConfig.scalePercent != 100;
     }
 
     @Override
