@@ -26,7 +26,6 @@ public class GraffitiRenderer {
             matrices.push();
             matrices.translate(g.pos.getX() - cameraPos.x, g.pos.getY() - cameraPos.y, g.pos.getZ() - cameraPos.z);
             
-            // ВОССТАНОВЛЕНА ОРИГИНАЛЬНАЯ ЛОГИКА ПОВОРОТА И СМЕЩЕНИЯ
             applySideTransform(matrices, g.side);
 
             VertexConsumer vertexConsumer = consumers.getBuffer(RenderLayers.entityTranslucent(texture));
@@ -44,23 +43,24 @@ public class GraffitiRenderer {
     }
 
     private static void applySideTransform(MatrixStack matrices, Direction side) {
-        float off = 0.001f; // Оригинальное значение
+        float off = 0.001f;
         switch (side) {
             case DOWN:
                 matrices.translate(0.5, -off, 0.5);
-                matrices.multiply(RotationAxis.POSITIVE_X.rotationDegrees(-90));
+                // ИСПРАВЛЕНО: изменено с -90 на 90, чтобы текстура на полу не была перевернута как на потолке
+                matrices.multiply(RotationAxis.POSITIVE_X.rotationDegrees(90));
                 break;
             case UP:
                 matrices.translate(0.5, 1 + off, 0.5);
-                matrices.multiply(RotationAxis.POSITIVE_X.rotationDegrees(90));
+                matrices.multiply(RotationAxis.POSITIVE_X.rotationDegrees(-90)); // Симметрично исправлено для потолка
                 break;
             case NORTH:
                 matrices.translate(0.5, 0.5, -off);
-                matrices.multiply(RotationAxis.POSITIVE_Z.rotationDegrees(-180)); // Оригинально: rotate(-180, 0, 0, 1)
+                matrices.multiply(RotationAxis.POSITIVE_Z.rotationDegrees(-180));
                 break;
             case SOUTH:
                 matrices.translate(0.5, 0.5, 1 + off);
-                matrices.multiply(RotationAxis.POSITIVE_X.rotationDegrees(180)); // Оригинально: rotate(180, 1, 0, 0)
+                matrices.multiply(RotationAxis.POSITIVE_X.rotationDegrees(180));
                 break;
             case WEST:
                 matrices.translate(-off, 0.5, 0.5);
@@ -73,7 +73,6 @@ public class GraffitiRenderer {
                 matrices.multiply(RotationAxis.POSITIVE_X.rotationDegrees(180));
                 break;
         }
-        // Сдвиг для центрирования (центр квада в центре блока)
         matrices.translate(-0.5, -0.5, 0);
     }
 }
