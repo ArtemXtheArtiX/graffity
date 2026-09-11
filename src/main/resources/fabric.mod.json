@@ -8,8 +8,8 @@
   "license": "MIT",
   "environment": "client",
   "entrypoints": {
-    "main": ["ru.yourname.graffiti.GraffitiMod"],
-    "client": ["ru.yourname.graffiti.GraffitiClient"]
+  "main": ["ru.yourname.GraffitiMod"],
+  "client": ["ru.yourname.client.GraffitiClient"]
   },
   "depends": {
     "fabricloader": ">=0.16.0",
