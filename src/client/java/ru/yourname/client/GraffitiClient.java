@@ -19,7 +19,8 @@ public class GraffitiClient implements ClientModInitializer {
             "key.graffity.open_manager", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_G, CATEGORY
         ));
 
-        WorldRenderEvents.LAST.register(GraffitiRenderer::onRenderWorldLast);
+        // ИСПРАВЛЕНО: используем END_MAIN вместо устаревшего LAST
+        WorldRenderEvents.END_MAIN.register(GraffitiRenderer::onRenderWorldLast);
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             if (client.world != null) {
