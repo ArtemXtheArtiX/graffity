@@ -13,8 +13,10 @@ public class GraffitiConfig {
 
 	public static String lastImagePath = "";
 	public static int defaultBlockSize = 2;
-	public static int defaultTextureResolution = 512;
-	public static int scalePercent = 100;
+	
+	// Базовое разрешение (не меняется при переключении масштаба)
+	public static int baseTextureResolution = 1024; 
+	public static int scalePercent = 100; // 50 или 100
 
 	public static void load() {
 		if (!CONFIG_FILE.toFile().exists()) {
@@ -26,7 +28,7 @@ public class GraffitiConfig {
 			if (data != null) {
 				lastImagePath = data.lastImagePath;
 				defaultBlockSize = Math.max(1, Math.min(3, data.defaultBlockSize));
-				defaultTextureResolution = Math.max(128, Math.min(4096, data.defaultTextureResolution));
+				baseTextureResolution = Math.max(128, Math.min(4096, data.baseTextureResolution));
 				scalePercent = (data.scalePercent == 50) ? 50 : 100;
 			}
 		} catch (Exception e) {
@@ -42,15 +44,16 @@ public class GraffitiConfig {
 		}
 	}
 
-	public static int computeResolution(int originalResolution) {
-		int newRes = originalResolution * scalePercent / 100;
-		return Math.max(64, newRes);
+	// Вычисляет разрешение НА ЛЕТУ, не сохраняя деградацию в конфиг
+	public static int getTargetResolution() {
+		int newRes = baseTextureResolution * scalePercent / 100;
+		return Math.max(64, Math.min(4096, newRes));
 	}
 
 	private static class ConfigData {
 		String lastImagePath = GraffitiConfig.lastImagePath;
 		int defaultBlockSize = GraffitiConfig.defaultBlockSize;
-		int defaultTextureResolution = GraffitiConfig.defaultTextureResolution;
+		int baseTextureResolution = GraffitiConfig.baseTextureResolution;
 		int scalePercent = GraffitiConfig.scalePercent;
 	}
 }
