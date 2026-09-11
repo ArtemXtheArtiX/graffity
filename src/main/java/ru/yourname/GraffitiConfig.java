@@ -44,7 +44,7 @@ public class GraffitiConfig {
 		}
 	}
 
-	// Вычисляет разрешение НА ЛЕТУ, не сохраняя деградацию в конфиг
+	// Вычисляет итоговое разрешение НА ЛЕТУ, не сохраняя деградацию в конфиг
 	public static int getTargetResolution() {
 		int newRes = baseTextureResolution * scalePercent / 100;
 		return Math.max(64, Math.min(4096, newRes));
