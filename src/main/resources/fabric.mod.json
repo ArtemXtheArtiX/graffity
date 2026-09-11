@@ -8,9 +8,15 @@
   "license": "MIT",
   "environment": "client",
   "entrypoints": {
-  "main": ["ru.yourname.GraffitiMod"],
-  "client": ["ru.yourname.client.GraffitiClient"]
+    "main": ["ru.yourname.GraffitiMod"],
+    "client": ["ru.yourname.client.GraffitiClient"]
   },
+  "mixins": [
+    {
+      "config": "graffity.client.mixins.json",
+      "environment": "client"
+    }
+  ],
   "depends": {
     "fabricloader": ">=0.16.0",
     "minecraft": "1.21.11",
