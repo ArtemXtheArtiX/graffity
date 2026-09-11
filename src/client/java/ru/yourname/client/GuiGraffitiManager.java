@@ -29,6 +29,7 @@ public class GuiGraffitiManager extends Screen {
         int leftWidth = this.width / 2;
         int rightX = leftWidth + 10;
 
+        // 1. Создаем кнопки ПЕРВЫМИ
         int sizeBtnW = 60, sizeBtnH = 20, sizeY = 80;
         btn1x1 = ButtonWidget.builder(Text.literal("1x1"), b -> setBlockSize(1)).dimensions(rightX, sizeY, sizeBtnW, sizeBtnH).build();
         btn2x2 = ButtonWidget.builder(Text.literal("2x2"), b -> setBlockSize(2)).dimensions(rightX + sizeBtnW + 5, sizeY, sizeBtnW, sizeBtnH).build();
@@ -43,21 +44,23 @@ public class GuiGraffitiManager extends Screen {
         this.addDrawableChild(btn50);
         this.addDrawableChild(btn100);
 
+        // 2. Создаем поле ввода
         urlField = new TextFieldWidget(this.textRenderer, 20, 60, leftWidth - 30, 20, Text.literal("URL or File Path"));
         urlField.setMaxLength(1000);
         urlField.setChangedListener(this::onUrlChanged);
         this.addDrawableChild(urlField);
         this.setInitialFocus(urlField);
 
-        urlField.setText(GraffitiConfig.lastImagePath);
-
-        // СОХРАНЕНИЕ ПРОИСХОДИТ ТОЛЬКО ЗДЕСЬ
+        // 3. Создаем кнопку сохранения (единственное место, где вызывается save!)
         btnSelect = ButtonWidget.builder(Text.literal("Select / Save"), btn -> {
             GraffitiConfig.lastImagePath = urlField.getText().trim();
-            GraffitiConfig.save(); 
+            GraffitiConfig.save(); // <-- ТОЛЬКО ЗДЕСЬ
             close();
         }).dimensions(20, 135, leftWidth - 30, 20).build();
         this.addDrawableChild(btnSelect);
+
+        // 4. Устанавливаем текст ПОСЛЕ создания всех кнопок, чтобы onUrlChanged не вызвал NPE
+        urlField.setText(GraffitiConfig.lastImagePath);
     }
 
     private void onUrlChanged(String text) {
@@ -78,11 +81,13 @@ public class GuiGraffitiManager extends Screen {
 
     private void setBlockSize(int size) {
         GraffitiConfig.defaultBlockSize = size;
+        // Никакого save() здесь!
         updateButtons();
     }
 
     private void setScale(int percent) {
         GraffitiConfig.scalePercent = percent;
+        // Никакого save() здесь!
         updateButtons();
         if (!urlField.getText().trim().isEmpty()) {
             onUrlChanged(urlField.getText());
@@ -126,11 +131,7 @@ public class GuiGraffitiManager extends Screen {
         context.drawCenteredTextWithShadow(this.textRenderer, Text.literal("Select Image"), leftWidth / 2, 10, 0xFFFFFF);
         context.drawCenteredTextWithShadow(this.textRenderer, Text.literal("Settings"), leftWidth + (this.width - leftWidth) / 2, 10, 0xFFFFFF);
 
-        int dropX = 20;
-        int dropY = 85;
-        int dropW = leftWidth - 30;
-        int dropH = 40;
-        
+        int dropX = 20, dropY = 85, dropW = leftWidth - 30, dropH = 40;
         context.fill(dropX, dropY, dropX + dropW, dropY + dropH, 0x30888888);
         int borderColor = 0xFF55FF55;
         context.fill(dropX, dropY, dropX + dropW, dropY + 1, borderColor);
@@ -138,7 +139,7 @@ public class GuiGraffitiManager extends Screen {
         context.fill(dropX, dropY, dropX + 1, dropY + dropH, borderColor);
         context.fill(dropX + dropW - 1, dropY, dropX + dropW, dropY + dropH, borderColor);
         
-        // ИСПРАВЛЕНО: 0xFFFFFFFF вместо 0xFFFFFF для полной видимости текста
+        // ИСПРАВЛЕНО: 0xFFFFFFFF для гарантированной видимости текста
         context.drawCenteredTextWithShadow(this.textRenderer, Text.literal(hintMessage), dropX + dropW / 2, dropY + dropH / 2 - 4, 0xFFFFFFFF);
 
         if (previewField != null) {
