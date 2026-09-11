@@ -1,5 +1,6 @@
 package ru.yourname.client;
 
+import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext;
 import net.minecraft.client.render.*;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.util.Identifier;
@@ -8,11 +9,12 @@ import net.minecraft.util.math.RotationAxis;
 import net.minecraft.util.math.Vec3d;
 
 public class GraffitiRenderer {
-    public static void renderAll(MatrixStack matrices, Camera camera, VertexConsumerProvider consumers) {
+    public static void onRenderWorldLast(WorldRenderContext context) {
         if (GraffitiManager.getAll().isEmpty()) return;
 
-        // ИСПРАВЛЕНО: getCameraPos() вместо getPos()
-        Vec3d cameraPos = camera.getCameraPos();
+        MatrixStack matrices = context.matrixStack();
+        Vec3d cameraPos = context.camera().getPos();
+        VertexConsumerProvider consumers = context.consumers();
 
         for (var entry : GraffitiManager.getAll().entrySet()) {
             ru.yourname.Graffiti g = entry.getValue();
@@ -25,7 +27,7 @@ public class GraffitiRenderer {
             matrices.translate(g.pos.getX() - cameraPos.x, g.pos.getY() - cameraPos.y, g.pos.getZ() - cameraPos.z);
             applySideTransform(matrices, g.side);
 
-            // ИСПРАВЛЕНО: RenderLayers.entityTranslucent вместо getEntityTranslucent
+            // Используем актуальный метод RenderLayers.entityTranslucent
             VertexConsumer vertexConsumer = consumers.getBuffer(RenderLayers.entityTranslucent(texture));
             float offset = (g.blockSize - 1) / 2.0f;
             float min = -offset;
