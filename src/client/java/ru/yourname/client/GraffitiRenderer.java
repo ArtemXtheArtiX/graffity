@@ -1,6 +1,7 @@
 package ru.yourname.client;
 
-import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext;
+// ИСПРАВЛЕНО: новые импорты из пакета .world
+import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderContext;
 import net.minecraft.client.render.*;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.util.Identifier;
@@ -13,7 +14,8 @@ public class GraffitiRenderer {
         if (GraffitiManager.getAll().isEmpty()) return;
 
         MatrixStack matrices = context.matrixStack();
-        Vec3d cameraPos = context.camera().getPos();
+        // ИСПРАВЛЕНО: getCameraPos() вместо getPos()
+        Vec3d cameraPos = context.camera().getCameraPos();
         VertexConsumerProvider consumers = context.consumers();
 
         for (var entry : GraffitiManager.getAll().entrySet()) {
@@ -27,7 +29,7 @@ public class GraffitiRenderer {
             matrices.translate(g.pos.getX() - cameraPos.x, g.pos.getY() - cameraPos.y, g.pos.getZ() - cameraPos.z);
             applySideTransform(matrices, g.side);
 
-            // Используем актуальный метод RenderLayers.entityTranslucent
+            // ИСПРАВЛЕНО: RenderLayers.entityTranslucent (без get и с маленькой буквы)
             VertexConsumer vertexConsumer = consumers.getBuffer(RenderLayers.entityTranslucent(texture));
             float offset = (g.blockSize - 1) / 2.0f;
             float min = -offset;
