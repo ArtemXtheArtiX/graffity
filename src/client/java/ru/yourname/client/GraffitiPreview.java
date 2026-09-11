@@ -16,7 +16,7 @@ import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
 
-public class TextField {
+public class GraffitiPreview {
 	private static final int MAX_DIMENSION = 512;
 
 	public int x, y, width, height;
@@ -27,7 +27,7 @@ public class TextField {
 	
 	public int originalWidth = 0, originalHeight = 0;
 	public boolean keepAspect = false;
-	private final boolean isPreview; // НОВОЕ: флаг режима предпросмотра
+	private final boolean isPreview;
 
 	private Identifier textureId;
 	private List<Identifier> gifTextureIds;
@@ -36,8 +36,7 @@ public class TextField {
 	private long lastFrameTime = 0;
 	private boolean isLoaded = false;
 
-	// ОБНОВЛЕНО: добавлен параметр isPreview
-	public TextField(int x, int y, int width, int height, String urlOrPath, boolean isGif, boolean isPreview) {
+	public GraffitiPreview(int x, int y, int width, int height, String urlOrPath, boolean isGif, boolean isPreview) {
 		this.x = x; this.y = y; this.width = width; this.height = height;
 		this.imageUrlOrPath = urlOrPath; 
 		this.isGif = isGif;
@@ -84,7 +83,6 @@ public class TextField {
 		MinecraftClient.getInstance().execute(() -> {
 			try {
 				if (isPreview) {
-					// ОПТИМИЗАЦИЯ: для предпросмотра загружаем ТОЛЬКО первый кадр как статичную картинку
 					java.awt.image.BufferedImage bImg = reader.read(0);
 					originalWidth = bImg.getWidth();
 					originalHeight = bImg.getHeight();
@@ -95,7 +93,7 @@ public class TextField {
 					
 					NativeImage finalImg;
 					int maxDim = Math.max(originalImg.getWidth(), originalImg.getHeight());
-					int targetRes = 512; // Ограничиваем предпросмотр 512px для максимальной производительности
+					int targetRes = 512;
 					if (maxDim > targetRes) {
 						finalImg = resizeImage(originalImg, targetRes, targetRes);
 						originalImg.close();
@@ -107,9 +105,8 @@ public class TextField {
 					textureId = Identifier.of("graffity", "preview_" + imageUrlOrPath.hashCode());
 					MinecraftClient.getInstance().getTextureManager().registerTexture(textureId, tex);
 					
-					this.isGif = false; // Принудительно отключаем анимацию для предпросмотра
+					this.isGif = false;
 				} else {
-					// Полная загрузка GIF для реального размещения в мире
 					gifTextureIds = new ArrayList<>();
 					frameDelays = new ArrayList<>();
 					for (int i = 0; i < numFrames; i++) {
