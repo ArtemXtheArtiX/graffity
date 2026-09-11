@@ -11,7 +11,9 @@ import ru.yourname.GraffitiMod;
 import javax.imageio.ImageIO;
 import javax.imageio.ImageReader;
 import javax.imageio.stream.ImageInputStream;
+import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
 import java.io.FileInputStream;
 import java.io.InputStream;
 import java.net.URL;
@@ -43,41 +45,31 @@ public class GraffitiManager {
 		}).start();
 	}
 
-	// ИСПРАВЛЕНО: Прямая запись пикселей в NativeImage. 
-	// Это полностью устраняет "Bad PNG Signature", артефакты и проблемы с JPG/GIF конвертацией.
-	private static NativeImage prepareImageDirect(BufferedImage original, int targetSize) {
-		int w = original.getWidth();
-		int h = original.getHeight();
-		double scale = Math.min((double) targetSize / w, (double) targetSize / h);
-		int drawW = (int) (w * scale);
-		int drawH = (int) (h * scale);
-		int offsetX = (targetSize - drawW) / 2;
-		int offsetY = (targetSize - drawH) / 2;
-
-		NativeImage canvas = new NativeImage(NativeImage.Format.RGBA, targetSize, targetSize, false);
-		// Заполняем прозрачным фоном
-		canvas.fillRect(0, 0, targetSize, targetSize, 0x00000000);
-
-		for (int y = 0; y < drawH; y++) {
-			for (int x = 0; x < drawW; x++) {
-				int srcX = Math.min((int) (x / scale), w - 1);
-				int srcY = Math.min((int) (y / scale), h - 1);
-				int rgb = original.getRGB(srcX, srcY);
-				
-				int canvasX = offsetX + x;
-				int canvasY = offsetY + y;
-				canvas.setColorArgb(canvasX, canvasY, rgb);
-			}
-		}
-		return canvas;
-	}
-
 	private static void loadStaticAsync(UUID id, Graffiti g, InputStream is) throws Exception {
 		BufferedImage bImg = ImageIO.read(is);
 		if (bImg == null) return;
-		
+
+		// Принудительная конвертация в чистый ARGB
+		BufferedImage cleanImg = new BufferedImage(bImg.getWidth(), bImg.getHeight(), BufferedImage.TYPE_INT_ARGB);
+		Graphics2D graphics = cleanImg.createGraphics();
+		graphics.drawImage(bImg, 0, 0, null);
+		graphics.dispose();
+
 		int targetRes = GraffitiConfig.getTargetResolution();
-		final NativeImage finalImg = prepareImageDirect(bImg, targetRes);
+		double scale = Math.min((double) targetRes / cleanImg.getWidth(), (double) targetRes / cleanImg.getHeight());
+		int drawW = (int) (cleanImg.getWidth() * scale);
+		int drawH = (int) (cleanImg.getHeight() * scale);
+		int offsetX = (targetRes - drawW) / 2;
+		int offsetY = (targetRes - drawH) / 2;
+
+		BufferedImage canvas = new BufferedImage(targetRes, targetRes, BufferedImage.TYPE_INT_ARGB);
+		Graphics2D g = canvas.createGraphics();
+		g.drawImage(cleanImg, offsetX, offsetY, drawW, drawH, null);
+		g.dispose();
+
+		ByteArrayOutputStream baos = new ByteArrayOutputStream();
+		ImageIO.write(canvas, "png", baos);
+		final NativeImage finalImg = NativeImage.read(baos.toByteArray());
 
 		MinecraftClient.getInstance().execute(() -> {
 			NativeImageBackedTexture tex = new NativeImageBackedTexture(() -> "graffity", finalImg);
@@ -101,8 +93,27 @@ public class GraffitiManager {
 			for (int i = 0; i < numFrames; i++) {
 				try {
 					BufferedImage bImg = reader.read(i);
-					// Используем тот же надежный метод прямой отрисовки
-					NativeImage finalImg = prepareImageDirect(bImg, targetRes);
+					
+					// Та же самая защита от артефактов для каждого кадра гифки
+					BufferedImage cleanImg = new BufferedImage(bImg.getWidth(), bImg.getHeight(), BufferedImage.TYPE_INT_ARGB);
+					Graphics2D graphics = cleanImg.createGraphics();
+					graphics.drawImage(bImg, 0, 0, null);
+					graphics.dispose();
+
+					double scale = Math.min((double) targetRes / cleanImg.getWidth(), (double) targetRes / cleanImg.getHeight());
+					int drawW = (int) (cleanImg.getWidth() * scale);
+					int drawH = (int) (cleanImg.getHeight() * scale);
+					int offsetX = (targetRes - drawW) / 2;
+					int offsetY = (targetRes - drawH) / 2;
+
+					BufferedImage canvas = new BufferedImage(targetRes, targetRes, BufferedImage.TYPE_INT_ARGB);
+					Graphics2D g = canvas.createGraphics();
+					g.drawImage(cleanImg, offsetX, offsetY, drawW, drawH, null);
+					g.dispose();
+
+					ByteArrayOutputStream baos = new ByteArrayOutputStream();
+					ImageIO.write(canvas, "png", baos);
+					NativeImage finalImg = NativeImage.read(baos.toByteArray());
 
 					NativeImageBackedTexture tex = new NativeImageBackedTexture(() -> "graffity", finalImg);
 					Identifier loc = Identifier.of("graffity", "graffiti_gif_" + id + "_" + i);
