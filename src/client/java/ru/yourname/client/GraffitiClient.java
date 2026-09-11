@@ -6,16 +6,18 @@ import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.util.InputUtil;
+import net.minecraft.util.Identifier;
 import org.lwjgl.glfw.GLFW;
-import ru.yourname.GraffitiMod;
 
 public class GraffitiClient implements ClientModInitializer {
 	public static KeyBinding keyOpenManager;
+	// ИСПРАВЛЕНО: Category теперь требует Identifier
+	public static final KeyBinding.Category CATEGORY = new KeyBinding.Category(Identifier.of("graffity", "category"));
 
 	@Override
 	public void onInitializeClient() {
 		keyOpenManager = KeyBindingHelper.registerKeyBinding(new KeyBinding(
-			"key.graffity.open_manager", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_G, "category.graffity"
+			"key.graffity.open_manager", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_G, CATEGORY
 		));
 
 		WorldRenderEvents.LAST.register(GraffitiRenderer::onRenderWorldLast);
