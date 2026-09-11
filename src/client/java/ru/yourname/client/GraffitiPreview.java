@@ -9,7 +9,9 @@ import net.minecraft.util.Identifier;
 import ru.yourname.GraffitiMod;
 
 import javax.imageio.ImageIO;
+import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
 import java.io.FileInputStream;
 import java.io.InputStream;
 import java.net.URL;
@@ -40,7 +42,6 @@ public class GraffitiPreview {
 		new Thread(() -> {
 			try {
 				InputStream is = imageUrlOrPath.startsWith("http") ? new URL(imageUrlOrPath).openStream() : new FileInputStream(imageUrlOrPath);
-				// Для предпросмотра мы всегда грузим как статику, чтобы не грузить все кадры гифки
 				loadStaticSafe(is);
 				isLoaded = true;
 			} catch (Exception e) { 
@@ -49,7 +50,6 @@ public class GraffitiPreview {
 		}).start();
 	}
 
-	// ИСПРАВЛЕНО: Безопасная загрузка без ImageIO.write, которая вызывала "Bad PNG Signature"
 	private void loadStaticSafe(InputStream is) throws Exception {
 		BufferedImage bImg = ImageIO.read(is);
 		if (bImg == null) return;
@@ -57,25 +57,24 @@ public class GraffitiPreview {
 		originalWidth = bImg.getWidth();
 		originalHeight = bImg.getHeight();
 		
-		int targetSize = 512; // Максимум для превью
+		// МАГИЯ: Принудительно создаем чистый ARGB буфер. Это устраняет артефакты GIF и ошибки ImageIO
+		BufferedImage cleanImg = new BufferedImage(originalWidth, originalHeight, BufferedImage.TYPE_INT_ARGB);
+		Graphics2D g = cleanImg.createGraphics();
+		g.drawImage(bImg, 0, 0, null);
+		g.dispose();
+
+		int targetSize = 512;
 		double scale = Math.min((double) targetSize / originalWidth, (double) targetSize / originalHeight);
 		int drawW = (int) (originalWidth * scale);
 		int drawH = (int) (originalHeight * scale);
 		int offsetX = (targetSize - drawW) / 2;
 		int offsetY = (targetSize - drawH) / 2;
 
-		// Создаем пустой холст и рисуем пиксели напрямую. Это на 100% безопасно для любых JPG/GIF
-		NativeImage canvas = new NativeImage(NativeImage.Format.RGBA, targetSize, targetSize, false);
-		canvas.fillRect(0, 0, targetSize, targetSize, 0x00000000);
-
-		for (int y = 0; y < drawH; y++) {
-			for (int x = 0; x < drawW; x++) {
-				int srcX = Math.min((int) (x / scale), originalWidth - 1);
-				int srcY = Math.min((int) (y / scale), originalHeight - 1);
-				int rgb = bImg.getRGB(srcX, srcY);
-				canvas.setColorArgb(offsetX + x, offsetY + y, rgb);
-			}
-		}
+		// Теперь ImageIO работает с идеальным ARGB изображением и никогда не выдаст "Bad PNG Signature"
+		ByteArrayOutputStream baos = new ByteArrayOutputStream();
+		ImageIO.write(cleanImg, "png", baos);
+		
+		NativeImage canvas = NativeImage.read(baos.toByteArray());
 
 		MinecraftClient.getInstance().execute(() -> {
 			NativeImageBackedTexture tex = new NativeImageBackedTexture(() -> "graffity", canvas);
