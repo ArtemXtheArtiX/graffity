@@ -95,7 +95,27 @@ public class GraffitiManager {
 					Identifier loc = Identifier.of("graffity", "graffiti_gif_" + id + "_" + i);
 					MinecraftClient.getInstance().getTextureManager().registerTexture(loc, tex);
 					frames.add(loc);
-					delays[i] = Math.max(50, reader.getDelay(i) * 10);
+					
+					// ИСПРАВЛЕНО: Чтение задержки кадра через метаданные (как в TextField.java)
+					int delay = 100;
+					try {
+						javax.imageio.metadata.IIOMetadata meta = reader.getImageMetadata(i);
+						if ("javax_imageio_gif_image_1.0".equals(meta.getNativeMetadataFormatName())) {
+							org.w3c.dom.Node tree = meta.getAsTree(meta.getNativeMetadataFormatName());
+							for (int j = 0; j < tree.getChildNodes().getLength(); j++) {
+								org.w3c.dom.Node node = tree.getChildNodes().item(j);
+								if ("GraphicControlExtension".equals(node.getNodeName())) {
+									for (int k = 0; k < node.getChildNodes().getLength(); k++) {
+										org.w3c.dom.Node attr = node.getChildNodes().item(k);
+										if ("delayTime".equals(attr.getNodeName())) {
+											delay = Integer.parseInt(attr.getAttributes().getNamedItem("value").getNodeValue()) * 10;
+										}
+									}
+								}
+							}
+						}
+					} catch (Exception e) {}
+					delays[i] = Math.max(50, delay);
 				} catch (Exception e) {
 					GraffitiMod.LOGGER.warn("Skipped GIF frame " + i);
 				}
