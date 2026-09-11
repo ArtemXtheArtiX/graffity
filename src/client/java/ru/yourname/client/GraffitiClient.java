@@ -5,15 +5,18 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.util.InputUtil;
+import net.minecraft.util.Identifier;
 import org.lwjgl.glfw.GLFW;
 
 public class GraffitiClient implements ClientModInitializer {
     public static KeyBinding keyOpenManager;
+    // ИСПРАВЛЕНО: создаем Category через Identifier
+    public static final KeyBinding.Category CATEGORY = new KeyBinding.Category(Identifier.of("graffity", "category"));
 
     @Override
     public void onInitializeClient() {
         keyOpenManager = KeyBindingHelper.registerKeyBinding(new KeyBinding(
-            "key.graffity.open_manager", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_G, "category.graffity"
+            "key.graffity.open_manager", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_G, CATEGORY
         ));
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
