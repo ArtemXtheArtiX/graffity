@@ -5,6 +5,7 @@ import net.minecraft.client.texture.NativeImage;
 import net.minecraft.client.texture.NativeImageBackedTexture;
 import net.minecraft.util.Identifier;
 import ru.yourname.Graffiti;
+import ru.yourname.GraffitiConfig;
 import ru.yourname.GraffitiMod;
 
 import javax.imageio.ImageIO;
@@ -43,10 +44,7 @@ public class GraffitiManager {
 		}).start();
 	}
 
-	// ВОССТАНОВЛЕНА ОРИГИНАЛЬНАЯ ЛОГИКА ИЗ 1.12.2:
-	// Рисуем картинку по центру прозрачного квадратного холста.
-	// Это гарантирует, что текстура всегда квадратная, нет артефактов, 
-	// а размеры 1x1, 2x2, 3x3 масштабируют её от центра идеально!
+	// ОРИГИНАЛЬНАЯ ЛОГИКА: Рисуем на прозрачном квадратном холсте
 	private static NativeImage prepareImage(BufferedImage original, int targetSize) {
 		int w = original.getWidth();
 		int h = original.getHeight();
@@ -78,8 +76,9 @@ public class GraffitiManager {
 	private static void loadStaticAsync(UUID id, Graffiti g, InputStream is) throws Exception {
 		BufferedImage bImg = ImageIO.read(is);
 		if (bImg == null) return;
-		int targetRes = Math.min(g.textureResolution, 1024);
 		
+		// ИСПРАВЛЕНО: Убрано ограничение 1024. Теперь честно берем из конфига (до 4096)
+		int targetRes = GraffitiConfig.getTargetResolution();
 		final NativeImage finalImg = prepareImage(bImg, targetRes);
 
 		MinecraftClient.getInstance().execute(() -> {
@@ -99,12 +98,16 @@ public class GraffitiManager {
 		MinecraftClient.getInstance().execute(() -> {
 			List<Identifier> frames = new ArrayList<>();
 			int[] delays = new int[numFrames];
-			int targetRes = Math.min(g.textureResolution, 1024);
+			
+			// ИСПРАВЛЕНО: Убрано ограничение 1024
+			int targetRes = GraffitiConfig.getTargetResolution();
 
 			for (int i = 0; i < numFrames; i++) {
 				try {
 					BufferedImage bImg = reader.read(i);
-					// Применяем квадратный холст к каждому кадру гифки
+					
+					// ИСПРАВЛЕНО: Используем тот же prepareImage, что и для статики/превью. 
+					// Это гарантирует отсутствие артефактов и идентичное качество.
 					NativeImage finalImg = prepareImage(bImg, targetRes);
 
 					NativeImageBackedTexture tex = new NativeImageBackedTexture(() -> "graffity", finalImg);
