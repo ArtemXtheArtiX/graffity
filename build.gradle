@@ -14,6 +14,19 @@ repositories {
 	mavenCentral()
 }
 
+// === ЭТОТ БЛОК БЫЛ ПРОПУЩЕН, ИМЕННО ОН ВКЛЮЧАЕТ src/client/java ===
+loom {
+	splitEnvironmentSourceSets()
+
+	mods {
+		"graffity" {
+			sourceSet sourceSets.main
+			sourceSet sourceSets.client
+		}
+	}
+}
+// ===================================================================
+
 dependencies {
 	minecraft "com.mojang:minecraft:${project.minecraft_version}"
 	mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
