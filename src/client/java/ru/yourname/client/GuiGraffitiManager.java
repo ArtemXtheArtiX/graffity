@@ -51,15 +51,15 @@ public class GuiGraffitiManager extends Screen {
         this.addDrawableChild(urlField);
         this.setInitialFocus(urlField);
 
-        // 3. Создаем кнопку сохранения (единственное место, где вызывается save!)
+        // 3. Кнопка сохранения
         btnSelect = ButtonWidget.builder(Text.literal("Select / Save"), btn -> {
             GraffitiConfig.lastImagePath = urlField.getText().trim();
-            GraffitiConfig.save(); // <-- ТОЛЬКО ЗДЕСЬ
+            GraffitiConfig.save();
             close();
         }).dimensions(20, 135, leftWidth - 30, 20).build();
         this.addDrawableChild(btnSelect);
 
-        // 4. Устанавливаем текст ПОСЛЕ создания всех кнопок, чтобы onUrlChanged не вызвал NPE
+        // 4. Устанавливаем текст ПОСЛЕ создания кнопок
         urlField.setText(GraffitiConfig.lastImagePath);
     }
 
@@ -81,13 +81,11 @@ public class GuiGraffitiManager extends Screen {
 
     private void setBlockSize(int size) {
         GraffitiConfig.defaultBlockSize = size;
-        // Никакого save() здесь!
         updateButtons();
     }
 
     private void setScale(int percent) {
         GraffitiConfig.scalePercent = percent;
-        // Никакого save() здесь!
         updateButtons();
         if (!urlField.getText().trim().isEmpty()) {
             onUrlChanged(urlField.getText());
@@ -95,6 +93,7 @@ public class GuiGraffitiManager extends Screen {
     }
 
     private void updateButtons() {
+        // ЖЕЛЕЗОБЕТОННЫЕ ПРОВЕРКИ НА NULL
         if (btn1x1 != null) btn1x1.active = GraffitiConfig.defaultBlockSize != 1;
         if (btn2x2 != null) btn2x2.active = GraffitiConfig.defaultBlockSize != 2;
         if (btn3x3 != null) btn3x3.active = GraffitiConfig.defaultBlockSize != 3;
@@ -139,9 +138,6 @@ public class GuiGraffitiManager extends Screen {
         context.fill(dropX, dropY, dropX + 1, dropY + dropH, borderColor);
         context.fill(dropX + dropW - 1, dropY, dropX + dropW, dropY + dropH, borderColor);
         
-        // ИСПРАВЛЕНО: 0xFFFFFFFF для гарантированной видимости текста
-        context.drawCenteredTextWithShadow(this.textRenderer, Text.literal(hintMessage), dropX + dropW / 2, dropY + dropH / 2 - 4, 0xFFFFFFFF);
-
         if (previewField != null) {
             previewField.render(context, false);
         } else if (!hintMessage.equals("Drag & Drop file here") && !urlField.getText().trim().isEmpty()) {
@@ -153,6 +149,11 @@ public class GuiGraffitiManager extends Screen {
 
         urlField.render(context, mouseX, mouseY, delta);
         super.render(context, mouseX, mouseY, delta);
+
+        // ИСПРАВЛЕНО: Рисуем подсказку В САМОМ КОНЦЕ, чтобы ничто не могло ее перекрыть
+        if (hintMessage.equals("Drag & Drop file here") || (previewField == null && !urlField.getText().trim().isEmpty())) {
+            context.drawCenteredTextWithShadow(this.textRenderer, Text.literal(hintMessage), dropX + dropW / 2, dropY + dropH / 2 - 4, 0xFFFFFF);
+        }
     }
 
     @Override
