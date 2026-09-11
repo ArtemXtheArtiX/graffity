@@ -1,181 +1,79 @@
 package ru.yourname.client;
 
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.texture.NativeImage;
-import net.minecraft.client.texture.NativeImageBackedTexture;
+import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderContext;
+import net.minecraft.client.render.*;
+import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.util.Identifier;
-import ru.yourname.Graffiti;
-import ru.yourname.GraffitiMod;
+import net.minecraft.util.math.Direction;
+import net.minecraft.util.math.RotationAxis;
+import net.minecraft.util.math.Vec3d;
 
-import javax.imageio.ImageIO;
-import javax.imageio.ImageReader;
-import javax.imageio.stream.ImageInputStream;
-import java.awt.image.BufferedImage;
-import java.io.ByteArrayOutputStream;
-import java.io.FileInputStream;
-import java.io.InputStream;
-import java.net.URL;
-import java.util.*;
+public class GraffitiRenderer {
+    public static void onRenderWorldLast(WorldRenderContext context) {
+        if (GraffitiManager.getAll().isEmpty()) return;
 
-public class GraffitiManager {
-	private static final Map<UUID, Graffiti> graffitiMap = new HashMap<>();
-	private static final Map<UUID, Identifier> staticTextures = new HashMap<>();
-	private static final Map<UUID, AnimatedGraffitiData> animatedData = new HashMap<>();
+        MatrixStack matrices = context.matrices();
+        Vec3d cameraPos = context.gameRenderer().getCamera().getCameraPos();
+        VertexConsumerProvider consumers = context.consumers();
 
-	public static void addGraffiti(UUID id, Graffiti g) {
-		removeByOwner(g.ownerUUID);
-		graffitiMap.put(id, g);
-		loadTextureAsync(id, g);
-	}
+        for (var entry : GraffitiManager.getAll().entrySet()) {
+            ru.yourname.Graffiti g = entry.getValue();
+            if (g == null || g.isExpired()) continue;
 
-	private static void loadTextureAsync(UUID id, Graffiti g) {
-		new Thread(() -> {
-			try {
-				InputStream is = g.imagePath.startsWith("http") ? new URL(g.imagePath).openStream() : new FileInputStream(g.imagePath);
-				if (g.imagePath.toLowerCase().endsWith(".gif")) {
-					loadGifAsync(id, g, is);
-				} else {
-					loadStaticAsync(id, g, is);
-				}
-			} catch (Exception e) {
-				GraffitiMod.LOGGER.error("Failed to load graffiti: " + g.imagePath, e);
-			}
-		}).start();
-	}
+            Identifier texture = GraffitiManager.getTexture(g.uuid);
+            if (texture == null) continue;
 
-	private static void loadStaticAsync(UUID id, Graffiti g, InputStream is) throws Exception {
-		NativeImage originalImg = NativeImage.read(is);
-		int maxDim = Math.max(originalImg.getWidth(), originalImg.getHeight());
-		int targetRes = Math.min(g.textureResolution, 1024);
-		
-		final NativeImage finalImg;
-		if (maxDim > targetRes) {
-			finalImg = resizeImage(originalImg, targetRes, targetRes);
-			originalImg.close();
-		} else {
-			finalImg = originalImg;
-		}
+            matrices.push();
+            matrices.translate(g.pos.getX() - cameraPos.x, g.pos.getY() - cameraPos.y, g.pos.getZ() - cameraPos.z);
+            
+            // ВОССТАНОВЛЕНА ОРИГИНАЛЬНАЯ ЛОГИКА ПОВОРОТА И СМЕЩЕНИЯ
+            applySideTransform(matrices, g.side);
 
-		MinecraftClient.getInstance().execute(() -> {
-			NativeImageBackedTexture tex = new NativeImageBackedTexture(() -> "graffity", finalImg);
-			Identifier loc = Identifier.of("graffity", "graffiti_" + id);
-			MinecraftClient.getInstance().getTextureManager().registerTexture(loc, tex);
-			staticTextures.put(id, loc);
-		});
-	}
+            VertexConsumer vertexConsumer = consumers.getBuffer(RenderLayers.entityTranslucent(texture));
+            float offset = (g.blockSize - 1) / 2.0f;
+            float min = -offset;
+            float max = 1.0f + offset;
 
-	private static void loadGifAsync(UUID id, Graffiti g, InputStream is) throws Exception {
-		ImageInputStream iis = ImageIO.createImageInputStream(is);
-		ImageReader reader = ImageIO.getImageReadersByFormatName("gif").next();
-		reader.setInput(iis);
-		int numFrames = reader.getNumImages(true);
-		
-		MinecraftClient.getInstance().execute(() -> {
-			List<Identifier> frames = new ArrayList<>();
-			int[] delays = new int[numFrames];
-			int targetRes = Math.min(g.textureResolution, 1024);
+            vertexConsumer.vertex(matrices.peek().getPositionMatrix(), min, max, 0.0f).color(255, 255, 255, 255).texture(0.0f, 1.0f).overlay(OverlayTexture.DEFAULT_UV).light(15728880).normal(matrices.peek(), 0.0f, 0.0f, 1.0f);
+            vertexConsumer.vertex(matrices.peek().getPositionMatrix(), max, max, 0.0f).color(255, 255, 255, 255).texture(1.0f, 1.0f).overlay(OverlayTexture.DEFAULT_UV).light(15728880).normal(matrices.peek(), 0.0f, 0.0f, 1.0f);
+            vertexConsumer.vertex(matrices.peek().getPositionMatrix(), max, min, 0.0f).color(255, 255, 255, 255).texture(1.0f, 0.0f).overlay(OverlayTexture.DEFAULT_UV).light(15728880).normal(matrices.peek(), 0.0f, 0.0f, 1.0f);
+            vertexConsumer.vertex(matrices.peek().getPositionMatrix(), min, min, 0.0f).color(255, 255, 255, 255).texture(0.0f, 0.0f).overlay(OverlayTexture.DEFAULT_UV).light(15728880).normal(matrices.peek(), 0.0f, 0.0f, 1.0f);
 
-			for (int i = 0; i < numFrames; i++) {
-				try {
-					BufferedImage bImg = reader.read(i);
-					NativeImage originalImg = NativeImage.read(new ByteArrayOutputStream() {{
-						ImageIO.write(bImg, "png", this);
-					}}.toByteArray());
+            matrices.pop();
+        }
+    }
 
-					NativeImage finalImg;
-					int maxDim = Math.max(originalImg.getWidth(), originalImg.getHeight());
-					if (maxDim > targetRes) {
-						finalImg = resizeImage(originalImg, targetRes, targetRes);
-						originalImg.close();
-					} else {
-						finalImg = originalImg;
-					}
-
-					NativeImageBackedTexture tex = new NativeImageBackedTexture(() -> "graffity", finalImg);
-					Identifier loc = Identifier.of("graffity", "graffiti_gif_" + id + "_" + i);
-					MinecraftClient.getInstance().getTextureManager().registerTexture(loc, tex);
-					frames.add(loc);
-					
-					// ИСПРАВЛЕНО: Чтение задержки кадра через метаданные (как в TextField.java)
-					int delay = 100;
-					try {
-						javax.imageio.metadata.IIOMetadata meta = reader.getImageMetadata(i);
-						if ("javax_imageio_gif_image_1.0".equals(meta.getNativeMetadataFormatName())) {
-							org.w3c.dom.Node tree = meta.getAsTree(meta.getNativeMetadataFormatName());
-							for (int j = 0; j < tree.getChildNodes().getLength(); j++) {
-								org.w3c.dom.Node node = tree.getChildNodes().item(j);
-								if ("GraphicControlExtension".equals(node.getNodeName())) {
-									for (int k = 0; k < node.getChildNodes().getLength(); k++) {
-										org.w3c.dom.Node attr = node.getChildNodes().item(k);
-										if ("delayTime".equals(attr.getNodeName())) {
-											delay = Integer.parseInt(attr.getAttributes().getNamedItem("value").getNodeValue()) * 10;
-										}
-									}
-								}
-							}
-						}
-					} catch (Exception e) {}
-					delays[i] = Math.max(50, delay);
-				} catch (Exception e) {
-					GraffitiMod.LOGGER.warn("Skipped GIF frame " + i);
-				}
-			}
-			reader.dispose();
-			animatedData.put(id, new AnimatedGraffitiData(frames, delays));
-		});
-	}
-
-	private static NativeImage resizeImage(NativeImage img, int maxW, int maxH) {
-		float scaleX = (float) maxW / img.getWidth();
-		float scaleY = (float) maxH / img.getHeight();
-		float scale = Math.min(scaleX, scaleY);
-		if (scale >= 1.0f) return img;
-
-		int newW = (int) (img.getWidth() * scale);
-		int newH = (int) (img.getHeight() * scale);
-		NativeImage resized = new NativeImage(NativeImage.Format.RGBA, newW, newH, false);
-		for (int y = 0; y < newH; y++) {
-			for (int x = 0; x < newW; x++) {
-				resized.setColorArgb(x, y, img.getColorArgb((int)(x / scale), (int)(y / scale)));
-			}
-		}
-		return resized;
-	}
-
-	public static void removeByOwner(UUID owner) {
-		List<UUID> toRemove = new ArrayList<>();
-		for (Map.Entry<UUID, Graffiti> entry : graffitiMap.entrySet()) {
-			if (entry.getValue().ownerUUID.equals(owner)) toRemove.add(entry.getKey());
-		}
-		for (UUID id : toRemove) removeGraffiti(id);
-	}
-
-	public static void removeGraffiti(UUID id) {
-		Identifier staticId = staticTextures.remove(id);
-		if (staticId != null) MinecraftClient.getInstance().getTextureManager().destroyTexture(staticId);
-		
-		AnimatedGraffitiData anim = animatedData.remove(id);
-		if (anim != null) {
-			for (Identifier loc : anim.frames) {
-				MinecraftClient.getInstance().getTextureManager().destroyTexture(loc);
-			}
-		}
-		graffitiMap.remove(id);
-	}
-
-	public static Map<UUID, Graffiti> getAll() { return graffitiMap; }
-
-	public static void tick() {
-		List<UUID> expired = new ArrayList<>();
-		for (Map.Entry<UUID, Graffiti> entry : graffitiMap.entrySet()) {
-			if (entry.getValue().isExpired()) expired.add(entry.getKey());
-		}
-		for (UUID id : expired) removeGraffiti(id);
-	}
-
-	public static Identifier getTexture(UUID id) {
-		AnimatedGraffitiData anim = animatedData.get(id);
-		if (anim != null) return anim.getCurrentTexture();
-		return staticTextures.get(id);
-	}
+    private static void applySideTransform(MatrixStack matrices, Direction side) {
+        float off = 0.001f; // Оригинальное значение
+        switch (side) {
+            case DOWN:
+                matrices.translate(0.5, -off, 0.5);
+                matrices.multiply(RotationAxis.POSITIVE_X.rotationDegrees(-90));
+                break;
+            case UP:
+                matrices.translate(0.5, 1 + off, 0.5);
+                matrices.multiply(RotationAxis.POSITIVE_X.rotationDegrees(90));
+                break;
+            case NORTH:
+                matrices.translate(0.5, 0.5, -off);
+                matrices.multiply(RotationAxis.POSITIVE_Z.rotationDegrees(-180)); // Оригинально: rotate(-180, 0, 0, 1)
+                break;
+            case SOUTH:
+                matrices.translate(0.5, 0.5, 1 + off);
+                matrices.multiply(RotationAxis.POSITIVE_X.rotationDegrees(180)); // Оригинально: rotate(180, 1, 0, 0)
+                break;
+            case WEST:
+                matrices.translate(-off, 0.5, 0.5);
+                matrices.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(-90));
+                matrices.multiply(RotationAxis.POSITIVE_X.rotationDegrees(180));
+                break;
+            case EAST:
+                matrices.translate(1 + off, 0.5, 0.5);
+                matrices.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(90));
+                matrices.multiply(RotationAxis.POSITIVE_X.rotationDegrees(180));
+                break;
+        }
+        // Сдвиг для центрирования (центр квада в центре блока)
+        matrices.translate(-0.5, -0.5, 0);
+    }
 }
