@@ -14,7 +14,6 @@ public class GraffitiRenderer {
 
 		MatrixStack matrices = context.matrixStack();
 		Vec3d cameraPos = context.camera().getPos();
-		// ИСПРАВЛЕНО: используем VertexConsumerProvider из контекста
 		VertexConsumerProvider consumers = context.consumers();
 
 		for (var entry : GraffitiManager.getAll().entrySet()) {
@@ -33,7 +32,6 @@ public class GraffitiRenderer {
 			float min = -offset;
 			float max = 1.0f + offset;
 
-			// ИСПРАВЛЕНО: matrices.peek() возвращает Entry, что и требуется методом normal()
 			vertexConsumer.vertex(matrices.peek().getPositionMatrix(), min, max, 0.0f).color(255, 255, 255, 255).texture(0.0f, 1.0f).overlay(OverlayTexture.DEFAULT_UV).light(15728880).normal(matrices.peek(), 0.0f, 0.0f, 1.0f);
 			vertexConsumer.vertex(matrices.peek().getPositionMatrix(), max, max, 0.0f).color(255, 255, 255, 255).texture(1.0f, 1.0f).overlay(OverlayTexture.DEFAULT_UV).light(15728880).normal(matrices.peek(), 0.0f, 0.0f, 1.0f);
 			vertexConsumer.vertex(matrices.peek().getPositionMatrix(), max, min, 0.0f).color(255, 255, 255, 255).texture(1.0f, 0.0f).overlay(OverlayTexture.DEFAULT_UV).light(15728880).normal(matrices.peek(), 0.0f, 0.0f, 1.0f);
