@@ -12,7 +12,6 @@ import javax.imageio.ImageIO;
 import javax.imageio.ImageReader;
 import javax.imageio.stream.ImageInputStream;
 import java.awt.image.BufferedImage;
-import java.io.ByteArrayOutputStream;
 import java.io.FileInputStream;
 import java.io.InputStream;
 import java.net.URL;
@@ -44,42 +43,41 @@ public class GraffitiManager {
 		}).start();
 	}
 
-	// ОРИГИНАЛЬНАЯ ЛОГИКА: Рисуем на прозрачном квадратном холсте
-	private static NativeImage prepareImage(BufferedImage original, int targetSize) {
+	// ИСПРАВЛЕНО: Прямая запись пикселей в NativeImage. 
+	// Это полностью устраняет "Bad PNG Signature", артефакты и проблемы с JPG/GIF конвертацией.
+	private static NativeImage prepareImageDirect(BufferedImage original, int targetSize) {
 		int w = original.getWidth();
 		int h = original.getHeight();
-		
-		BufferedImage canvas = new BufferedImage(targetSize, targetSize, BufferedImage.TYPE_INT_ARGB);
-		java.awt.Graphics2D g = canvas.createGraphics();
-		g.setComposite(java.awt.AlphaComposite.Clear);
-		g.fillRect(0, 0, targetSize, targetSize);
-		g.setComposite(java.awt.AlphaComposite.SrcOver);
-		
 		double scale = Math.min((double) targetSize / w, (double) targetSize / h);
 		int drawW = (int) (w * scale);
 		int drawH = (int) (h * scale);
-		int x = (targetSize - drawW) / 2;
-		int y = (targetSize - drawH) / 2;
-		
-		g.drawImage(original, x, y, drawW, drawH, null);
-		g.dispose();
-		
-		try {
-			ByteArrayOutputStream baos = new ByteArrayOutputStream();
-			ImageIO.write(canvas, "png", baos);
-			return NativeImage.read(baos.toByteArray());
-		} catch (Exception e) {
-			throw new RuntimeException(e);
+		int offsetX = (targetSize - drawW) / 2;
+		int offsetY = (targetSize - drawH) / 2;
+
+		NativeImage canvas = new NativeImage(NativeImage.Format.RGBA, targetSize, targetSize, false);
+		// Заполняем прозрачным фоном
+		canvas.fillRect(0, 0, targetSize, targetSize, 0x00000000);
+
+		for (int y = 0; y < drawH; y++) {
+			for (int x = 0; x < drawW; x++) {
+				int srcX = Math.min((int) (x / scale), w - 1);
+				int srcY = Math.min((int) (y / scale), h - 1);
+				int rgb = original.getRGB(srcX, srcY);
+				
+				int canvasX = offsetX + x;
+				int canvasY = offsetY + y;
+				canvas.setColorArgb(canvasX, canvasY, rgb);
+			}
 		}
+		return canvas;
 	}
 
 	private static void loadStaticAsync(UUID id, Graffiti g, InputStream is) throws Exception {
 		BufferedImage bImg = ImageIO.read(is);
 		if (bImg == null) return;
 		
-		// ИСПРАВЛЕНО: Убрано ограничение 1024. Теперь честно берем из конфига (до 4096)
 		int targetRes = GraffitiConfig.getTargetResolution();
-		final NativeImage finalImg = prepareImage(bImg, targetRes);
+		final NativeImage finalImg = prepareImageDirect(bImg, targetRes);
 
 		MinecraftClient.getInstance().execute(() -> {
 			NativeImageBackedTexture tex = new NativeImageBackedTexture(() -> "graffity", finalImg);
@@ -98,17 +96,13 @@ public class GraffitiManager {
 		MinecraftClient.getInstance().execute(() -> {
 			List<Identifier> frames = new ArrayList<>();
 			int[] delays = new int[numFrames];
-			
-			// ИСПРАВЛЕНО: Убрано ограничение 1024
 			int targetRes = GraffitiConfig.getTargetResolution();
 
 			for (int i = 0; i < numFrames; i++) {
 				try {
 					BufferedImage bImg = reader.read(i);
-					
-					// ИСПРАВЛЕНО: Используем тот же prepareImage, что и для статики/превью. 
-					// Это гарантирует отсутствие артефактов и идентичное качество.
-					NativeImage finalImg = prepareImage(bImg, targetRes);
+					// Используем тот же надежный метод прямой отрисовки
+					NativeImage finalImg = prepareImageDirect(bImg, targetRes);
 
 					NativeImageBackedTexture tex = new NativeImageBackedTexture(() -> "graffity", finalImg);
 					Identifier loc = Identifier.of("graffity", "graffiti_gif_" + id + "_" + i);
