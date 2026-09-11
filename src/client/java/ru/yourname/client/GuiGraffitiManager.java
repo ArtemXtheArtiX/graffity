@@ -29,7 +29,6 @@ public class GuiGraffitiManager extends Screen {
         int leftWidth = this.width / 2;
         int rightX = leftWidth + 10;
 
-        // 1. Инициализируем кнопки ПЕРВЫМИ, чтобы onUrlChanged не вызвал NPE
         int sizeBtnW = 60, sizeBtnH = 20, sizeY = 80;
         btn1x1 = ButtonWidget.builder(Text.literal("1x1"), b -> setBlockSize(1)).dimensions(rightX, sizeY, sizeBtnW, sizeBtnH).build();
         btn2x2 = ButtonWidget.builder(Text.literal("2x2"), b -> setBlockSize(2)).dimensions(rightX + sizeBtnW + 5, sizeY, sizeBtnW, sizeBtnH).build();
@@ -55,14 +54,12 @@ public class GuiGraffitiManager extends Screen {
             hintMessage = "Drag & Drop directly into this window!";
         }).dimensions(20, 90, leftWidth - 30, 20).build());
 
-        // 2. Инициализируем поле ввода
         urlField = new TextFieldWidget(this.textRenderer, 20, 60, leftWidth - 30, 20, Text.literal("URL or File Path"));
         urlField.setMaxLength(1000);
         urlField.setChangedListener(this::onUrlChanged);
         this.addDrawableChild(urlField);
         this.setInitialFocus(urlField);
 
-        // 3. Устанавливаем текст ПОСЛЕ инициализации кнопок, чтобы триггер onUrlChanged был безопасен
         urlField.setText(GraffitiConfig.lastImagePath);
     }
 
@@ -127,7 +124,9 @@ public class GuiGraffitiManager extends Screen {
 
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        this.renderBackground(context, mouseX, mouseY, delta);
+        // ИСПРАВЛЕНО: Убираем renderBackground, который вызывает краш с Sodium/Blur.
+        // Рисуем полупрозрачный фон вручную.
+        context.fill(0, 0, this.width, this.height, 0x60000000);
         
         int leftWidth = this.width / 2;
         context.fill(leftWidth, 0, leftWidth + 1, this.height, 0xFFAAAAAA);
