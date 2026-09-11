@@ -64,7 +64,7 @@ public class GuiGraffitiManager extends Screen {
         updateButtons();
     }
 
-    private void onUrlChanged(String text) {
+        private void onUrlChanged(String text) {
         if (previewField != null) { previewField.cleanup(); previewField = null; }
         if (text.trim().isEmpty()) {
             hintMessage = "Drag & Drop file here\n(or paste URL/path)";
@@ -74,8 +74,8 @@ public class GuiGraffitiManager extends Screen {
             int previewSize = 150;
             int leftWidth = this.width / 2;
             
-            // ОБНОВЛЕНО: передаем true в качестве последнего параметра (isPreview)
-            previewField = new TextField((leftWidth - previewSize) / 2, 160, previewSize, previewSize, text, isGif, true);
+            // ИСПРАВЛЕНО: используем GraffitiPreview вместо TextField
+            previewField = new GraffitiPreview((leftWidth - previewSize) / 2, 160, previewSize, previewSize, text, isGif, true);
             previewField.keepAspect = true;
         }
         updateButtons();
