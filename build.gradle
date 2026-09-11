@@ -14,7 +14,6 @@ repositories {
 	mavenCentral()
 }
 
-// === ЭТОТ БЛОК БЫЛ ПРОПУЩЕН, ИМЕННО ОН ВКЛЮЧАЕТ src/client/java ===
 loom {
 	splitEnvironmentSourceSets()
 
@@ -25,7 +24,6 @@ loom {
 		}
 	}
 }
-// ===================================================================
 
 dependencies {
 	minecraft "com.mojang:minecraft:${project.minecraft_version}"
