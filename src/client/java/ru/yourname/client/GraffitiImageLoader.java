@@ -156,11 +156,10 @@ public final class GraffitiImageLoader {
                         }
                     }
 
-                    // Рисуем кадр поверх накопленного состояния
-                    cg.setComposite(AlphaComposite.SrcOver);
-                    cg.drawImage(argb,
-                            new java.awt.geom.Rectangle2D.Float(ox, oy, fw, fh),
-                            new java.awt.geom.Rectangle2D.Float(0, 0, fw, fh), null);
+                    // Рисуем кадр поверх накопленного состояния (Src — полная замена,
+                    // с учётом альфы кадра; AlphaComposite принимает константы int)
+                    cg.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC));
+                    cg.drawImage(argb, ox, oy, ox + fw, oy + fh, 0, 0, fw, fh, null);
 
                     // Снимаем готовый кадр на целевое разрешение
                     outFrames.add(fitToCanvas(canvas, targetRes));
@@ -168,14 +167,14 @@ public final class GraffitiImageLoader {
 
                     // Применяем disposal для следующего кадра
                     if (disposeOp == 2) { // restore to background (прозрачный)
-                        cg.setComposite(AlphaComposite.Clear);
+                        cg.setComposite(AlphaComposite.getInstance(AlphaComposite.CLEAR));
                         cg.fillRect(ox, oy, fw, fh);
-                        cg.setComposite(AlphaComposite.SrcOver);
+                        cg.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER));
                     } else if (disposeOp == 3 && backup != null) {
                         Graphics2D rg = canvas.createGraphics();
-                        rg.setComposite(AlphaComposite.Clear);
+                        rg.setComposite(AlphaComposite.getInstance(AlphaComposite.CLEAR));
                         rg.fillRect(0, 0, logicalW, logicalH);
-                        rg.setComposite(AlphaComposite.SrcOver);
+                        rg.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER));
                         rg.drawImage(backup, 0, 0, null);
                         rg.dispose();
                     }
@@ -255,7 +254,7 @@ public final class GraffitiImageLoader {
     /** Делает указанный индекс палитры реально прозрачным (некоторые декодеры игнорируют GCE). */
     private static void forceIndexTransparent(BufferedImage argbFrame, BufferedImage rawFrame, int transpIndex) {
         if (!(rawFrame.getColorModel() instanceof java.awt.image.IndexColorModel icm)) return;
-        if (transpIndex >= icm.getNumColors()) return;
+        if (transpIndex < 0 || transpIndex >= icm.getPaletteSize()) return;
         int rgb = icm.getRGB(transpIndex) & 0x00FFFFFF;
         int[] px = argbFrame.getRGB(0, 0, argbFrame.getWidth(), argbFrame.getHeight(), null, 0, argbFrame.getWidth());
         boolean changed = false;
@@ -274,7 +273,9 @@ public final class GraffitiImageLoader {
         if (src.getType() == BufferedImage.TYPE_INT_ARGB) return src;
         BufferedImage out = new BufferedImage(src.getWidth(), src.getHeight(), BufferedImage.TYPE_INT_ARGB);
         Graphics2D g = out.createGraphics();
-        g.setComposite(AlphaComposite.Src);
+        // Копируем пиксели 1:1, НЕ смешивая с фоном (SRC, а не SrcOver) — иначе
+        // полупрозрачные пиксали GIF «въедаются» в чёрный фон.
+        g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC));
         g.drawImage(src, 0, 0, null);
         g.dispose();
         return out;
@@ -282,7 +283,7 @@ public final class GraffitiImageLoader {
 
     private static void copyInto(BufferedImage from, BufferedImage to, int x, int y) {
         Graphics2D g = to.createGraphics();
-        g.setComposite(AlphaComposite.Copy);
+        g.setComposite(AlphaComposite.getInstance(AlphaComposite.COPY));
         g.drawImage(from, x, y, null);
         g.dispose();
     }
@@ -304,7 +305,7 @@ public final class GraffitiImageLoader {
         g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
         g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-        g.setComposite(AlphaComposite.SrcOver);
+        g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER));
 
         // Премотиплицирование альфы даёт чистый результат при последующей работе GPU
         g.setColor(new Color(0f, 0f, 0f, 0f));
