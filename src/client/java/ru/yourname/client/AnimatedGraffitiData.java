@@ -11,28 +11,40 @@ public class AnimatedGraffitiData {
 
     public AnimatedGraffitiData(List<Identifier> frames, int[] delays) {
         this.frames = frames;
-        this.delays = delays;
+        // Кадров может быть меньше, чем задержек (сбойные кадры пропускались) — защищаемся
+        this.delays = new int[frames.size()];
+        for (int i = 0; i < this.delays.length; i++) {
+            int d = (delays != null && i < delays.length) ? delays[i] : 100;
+            this.delays[i] = Math.max(40, d);
+        }
     }
 
     public Identifier getCurrentTexture() {
         if (frames.isEmpty()) return null;
-        
+
         long now = System.currentTimeMillis();
         if (lastFrameTime == 0) {
             lastFrameTime = now;
             return frames.get(currentFrame);
         }
 
-        int delay = delays[currentFrame];
-        if (delay <= 0) delay = 100;
+        // ИСПРАВЛЕНО: «догоняем» время не более чем на один полный цикл анимации.
+        // Раньше после долгого фриза/сворачивания окна while-цикл мог крутиться
+        // бесконечно долго (тысячи итераций), подвешивая рендер.
+        long elapsed = now - lastFrameTime;
+        long cycleMs = 0;
+        for (int d : delays) cycleMs += d;
+        if (cycleMs > 0 && elapsed > 4 * cycleMs) {
+            lastFrameTime = now; // просто синхронизируемся, без перебора кадров
+            return frames.get(currentFrame);
+        }
 
-        // ИСПРАВЛЕНО: предотвращаем накопление лагов и замедление гифки
-        // Используем цикл while, чтобы "догнать" время при просадке FPS
-        while (now - lastFrameTime >= delay) {
-            lastFrameTime += delay;
+        while (elapsed >= delays[currentFrame]) {
+            elapsed -= delays[currentFrame];
+            lastFrameTime += delays[currentFrame];
             currentFrame = (currentFrame + 1) % frames.size();
         }
-        
+
         return frames.get(currentFrame);
     }
 }
