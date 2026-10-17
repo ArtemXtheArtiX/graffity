@@ -1,6 +1,5 @@
 package ru.yourname.client;
 
-import com.mojang.blaze3d.systems.RenderSystem;
 import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderContext;
 import net.minecraft.client.render.*;
 import net.minecraft.client.util.math.MatrixStack;
@@ -8,6 +7,7 @@ import net.minecraft.util.Identifier;
 import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.Vec3d;
 import org.joml.Matrix4f;
+import org.joml.Vector3f;
 
 /**
  * ИСПРАВЛЕНО: ориентация и освещение граффити на всех шести сторонах блока.
@@ -18,14 +18,20 @@ import org.joml.Matrix4f;
  *     плоскость. Граффити «устанавливался не той стороной».
  *  2) Обход вершин квада был по часовой стрелке (если смотреть со стороны нормали),
  *     поэтому нормаль у части граней получилась направленной ВНУТРЬ блока.
- *     Together с отключённым culling это давало инвертированное затенение —
+ *     Вместе с отключённым culling это давало инвертированное затенение —
  *     граффити «затемнялся», когда смотришь на него с определённой стороны блока.
  *
  * Теперь для каждой стороны задан честный ортонормированный базис грани
  * (u = вправо по картинке, v = вверх по картинке, n = наружу от блока),
  * квад обходится против часовой стрелки со стороны нормали, а нормаль
- * передаётся через normal-матрицу MatrixStack (inverse-transpose) —
- * освещение корректно на всех шести сторонах.
+ * передаётся уже повёрнутой в мировых осях — освещение корректно на всех
+ * шести сторонах.
+ *
+ * МИГРАЦИЯ ПОД НОВЫЙ GPU-БЭКЕНД (1.21.11): прямые GL-вызовы
+ * RenderSystem.enableDepthTest()/depthMask() удалены — всё состояние пайплайна
+ * (depth test/write, blending, туман) декларативно задаёт слой рендера
+ * entityTranslucentEmissive, а максимальный свет в вершинах обеспечивает
+ * самосвечение граффити без влияния блока-носителя.
  */
 public class GraffitiRenderer {
 
@@ -40,9 +46,6 @@ public class GraffitiRenderer {
         Vec3d cameraPos = context.gameRenderer().getCamera().getCameraPos();
         VertexConsumerProvider consumers = context.consumers();
 
-        RenderSystem.enableDepthTest();
-        RenderSystem.depthMask(false); // рисуем поверх деталей блока, но глубины не пишем
-
         for (var entry : GraffitiManager.getAll().entrySet()) {
             ru.yourname.Graffiti g = entry.getValue();
             if (g == null || g.isExpired()) continue;
@@ -55,7 +58,9 @@ public class GraffitiRenderer {
 
             applySideTransform(matrices, g.side);
 
-            VertexConsumer vertexConsumer = consumers.getBuffer(RenderLayers.entityTranslucent(texture));
+            // Emissive-слой: прозрачное смешивание + отключённый туман, свет выкручен
+            // на максимум в вершинах — граффити не затемняется блоком и его ориентацией.
+            VertexConsumer vertexConsumer = consumers.getBuffer(RenderLayers.entityTranslucentEmissive(texture));
             float offset = (g.blockSize - 1) / 2.0f;
             float min = -offset;
             float max = 1.0f + offset;
@@ -64,8 +69,6 @@ public class GraffitiRenderer {
 
             matrices.pop();
         }
-
-        RenderSystem.depthMask(true);
     }
 
     /**
@@ -75,16 +78,23 @@ public class GraffitiRenderer {
      * нормали => нормаль +Z смотрит ОТ блока, а не внутрь него.
      */
     private static void drawQuad(VertexConsumer vc, MatrixStack matrices, float min, float max) {
-        Matrix4f pos = matrices.peek().getPositionMatrix();
+        MatrixStack.Entry entry = matrices.peek();
+        Matrix4f pos = entry.getPositionMatrix();
 
-        vertex(vc, matrices, pos, min, min, 0f, 0f, 1f); // bottom-left
-        vertex(vc, matrices, pos, max, min, 0f, 1f, 1f); // bottom-right
-        vertex(vc, matrices, pos, max, max, 0f, 1f, 0f); // top-right
-        vertex(vc, matrices, pos, min, max, 0f, 0f, 0f); // top-left
+        vertex(vc, entry, pos, min, min, 0f, 0f, 1f); // bottom-left
+        vertex(vc, entry, pos, max, min, 0f, 1f, 1f); // bottom-right
+        vertex(vc, entry, pos, max, max, 0f, 1f, 0f); // top-right
+        vertex(vc, entry, pos, min, max, 0f, 0f, 0f); // top-left
     }
 
-    private static void vertex(VertexConsumer vc, MatrixStack matrices, Matrix4f pos,
+    private static void vertex(VertexConsumer vc, MatrixStack.Entry entry, Matrix4f pos,
                                float x, float y, float z, float u, float v) {
+        // Вращаем локальную нормаль (+Z) в мировые оси тем же поворотом грани,
+        // чтобы освещению всегда была видна нормаль, направленная ОТ блока.
+        // Матрица — чистый ортонормированный поворот, поэтому трансформация вектора
+        // через m02/m12/m22 (столбец Z) даёт нормаль грани в мировых осях.
+        Vector3f n = new Vector3f(pos.m02(), pos.m12(), pos.m22());
+
         vc.vertex(pos, x, y, z)
                 .color(255, 255, 255, 255)
                 .texture(u, v)
@@ -92,7 +102,7 @@ public class GraffitiRenderer {
                 // Максимальный свет: граффити самоподсвеченное и не должно
                 // затемняться блоком-носителем или его ориентацией.
                 .light(LightmapTextureManager.MAX_LIGHT_COORDINATE)
-                .normal(matrices.peek().getNormalMatrix(), 0f, 0f, 1f);
+                .normal(n.x, n.y, n.z);
     }
 
     /**
@@ -150,11 +160,13 @@ public class GraffitiRenderer {
         }
 
         // Порядок важен: сначала ВРАЩЕНИЕ (ставит XY-квад с нормалью +Z в плоскость
-        // нужной грани), потом ПЕРЕНОС (MatrixStack.multiply применяет матрицы справа
-        // налево: M = T * R). В локальной системе квада после этого:
-        //   X_local -> u, Y_local -> v, Z_local -> n, а точка (0.5, 0.5, 0) попадает
-        // ровно в центр выбранной грани со смещением OFFSET наружу.
-        matrices.multiply(new Matrix4f(
+        // нужной грани), потом ПЕРЕНОС (M = T * R). В локальной системе квада после
+        // этого: X_local -> u, Y_local -> v, Z_local -> n, а точка (0.5, 0.5, 0)
+        // попадает ровно в центр выбранной грани со смещением OFFSET наружу.
+        // multiplyPositionMatrix — единственный способ домножить матрицу позиций
+        // произвольной матрицей в новом API MatrixStack (multiply() принимает только
+        // кватернион поворота).
+        matrices.multiplyPositionMatrix(new Matrix4f(
                 ux, vx, nx, cx - 0.5f,
                 uy, vy, ny, cy - 0.5f,
                 uz, vz, nz, cz - 0.5f,

@@ -158,7 +158,7 @@ public final class GraffitiImageLoader {
 
                     // Рисуем кадр поверх накопленного состояния (Src — полная замена,
                     // с учётом альфы кадра; AlphaComposite принимает константы int)
-                    cg.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC));
+                    cg.setComposite(AlphaComposite.Src);
                     cg.drawImage(argb, ox, oy, ox + fw, oy + fh, 0, 0, fw, fh, null);
 
                     // Снимаем готовый кадр на целевое разрешение
@@ -254,7 +254,7 @@ public final class GraffitiImageLoader {
     /** Делает указанный индекс палитры реально прозрачным (некоторые декодеры игнорируют GCE). */
     private static void forceIndexTransparent(BufferedImage argbFrame, BufferedImage rawFrame, int transpIndex) {
         if (!(rawFrame.getColorModel() instanceof java.awt.image.IndexColorModel icm)) return;
-        if (transpIndex < 0 || transpIndex >= icm.getPaletteSize()) return;
+        if (transpIndex < 0 || transpIndex >= icm.getMapSize()) return;
         int rgb = icm.getRGB(transpIndex) & 0x00FFFFFF;
         int[] px = argbFrame.getRGB(0, 0, argbFrame.getWidth(), argbFrame.getHeight(), null, 0, argbFrame.getWidth());
         boolean changed = false;
@@ -275,7 +275,7 @@ public final class GraffitiImageLoader {
         Graphics2D g = out.createGraphics();
         // Копируем пиксели 1:1, НЕ смешивая с фоном (SRC, а не SrcOver) — иначе
         // полупрозрачные пиксали GIF «въедаются» в чёрный фон.
-        g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC));
+        g.setComposite(AlphaComposite.Src);
         g.drawImage(src, 0, 0, null);
         g.dispose();
         return out;
@@ -283,7 +283,7 @@ public final class GraffitiImageLoader {
 
     private static void copyInto(BufferedImage from, BufferedImage to, int x, int y) {
         Graphics2D g = to.createGraphics();
-        g.setComposite(AlphaComposite.getInstance(AlphaComposite.COPY));
+        g.setComposite(AlphaComposite.Src); // константы в Java2D в нижнем регистре (Src, не COPY)
         g.drawImage(from, x, y, null);
         g.dispose();
     }
