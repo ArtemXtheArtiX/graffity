@@ -1,113 +1,142 @@
 package ru.yourname.client;
 
-import net.minecraft.client.gl.RenderPipelines;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gl.RenderPipelines;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.texture.NativeImage;
-import net.minecraft.client.texture.NativeImageBackedTexture;
 import net.minecraft.util.Identifier;
 import ru.yourname.GraffitiMod;
 
 import javax.imageio.ImageIO;
-import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.FileInputStream;
 import java.io.InputStream;
-import java.net.URL;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 
+/**
+ * Превью изображения/гифки в GUI менеджера.
+ *
+ * ИСПРАВЛЕНО:
+ *  - Превью гифок теперь реально анимированное (раньше рисовался только первый кадр,
+ *    флаг isGif нигде не использовался). Кадры декодируются в фоновом потоке,
+ *    в клиентский поток передаются только готовые NativeImage.
+ *  - Единый качественный пайплин обработки с GraffitiManager (bilinear-ресайз,
+ *    сохранение пропорций, корректные disposal-политики GIF).
+ */
 public class GraffitiPreview {
-	public int x, y, width, height;
-	public String imageUrlOrPath;
-	public boolean isGif;
-	public float alpha = 1.0f;
-	public float speed = 1.0f;
-	
-	public int originalWidth = 0, originalHeight = 0;
-	public boolean keepAspect = false;
-	private final boolean isPreview;
+    private static final AtomicLong UID = new AtomicLong();
 
-	private Identifier textureId;
-	private boolean isLoaded = false;
+    public int x, y, width, height;
+    public String imageUrlOrPath;
+    public boolean isGif;
+    public float alpha = 1.0f;
+    public float speed = 1.0f;
 
-	public GraffitiPreview(int x, int y, int width, int height, String urlOrPath, boolean isGif, boolean isPreview) {
-		this.x = x; this.y = y; this.width = width; this.height = height;
-		this.imageUrlOrPath = urlOrPath; 
-		this.isGif = isGif;
-		this.isPreview = isPreview;
-		loadImageAsync();
-	}
+    public int originalWidth = 0, originalHeight = 0;
+    public boolean keepAspect = false;
 
-	private void loadImageAsync() {
-		new Thread(() -> {
-			try {
-				InputStream is = imageUrlOrPath.startsWith("http") ? new URL(imageUrlOrPath).openStream() : new FileInputStream(imageUrlOrPath);
-				loadStaticSafe(is);
-				isLoaded = true;
-			} catch (Exception e) { 
-				GraffitiMod.LOGGER.error("Failed to load preview: " + imageUrlOrPath, e); 
-			}
-		}).start();
-	}
+    private final Identifier textureId;
+    private volatile boolean isLoaded = false;
+    private volatile boolean disposed = false;
 
-	private void loadStaticSafe(InputStream is) throws Exception {
-		BufferedImage bImg = ImageIO.read(is);
-		if (bImg == null) return;
+    // Анимация (только для GIF)
+    private AnimatedGraffitiData animation;
+    private final List<Identifier> textureFrames = new ArrayList<>();
 
-		originalWidth = bImg.getWidth();
-		originalHeight = bImg.getHeight();
-		
-		// МАГИЯ: Принудительно создаем чистый ARGB буфер. Это устраняет артефакты GIF и ошибки ImageIO
-		BufferedImage cleanImg = new BufferedImage(originalWidth, originalHeight, BufferedImage.TYPE_INT_ARGB);
-		Graphics2D g = cleanImg.createGraphics();
-		g.drawImage(bImg, 0, 0, null);
-		g.dispose();
+    public GraffitiPreview(int x, int y, int width, int height, String urlOrPath, boolean isGif, boolean isPreview) {
+        this.x = x; this.y = y; this.width = width; this.height = height;
+        this.imageUrlOrPath = urlOrPath;
+        this.isGif = isGif;
+        this.textureId = Identifier.of("graffity", "preview_" + System.nanoTime() + "_" + UID.incrementAndGet());
+        loadImageAsync();
+    }
 
-		int targetSize = 512;
-		double scale = Math.min((double) targetSize / originalWidth, (double) targetSize / originalHeight);
-		int drawW = (int) (originalWidth * scale);
-		int drawH = (int) (originalHeight * scale);
-		int offsetX = (targetSize - drawW) / 2;
-		int offsetY = (targetSize - drawH) / 2;
+    private void loadImageAsync() {
+        Thread t = new Thread(() -> {
+            try {
+                byte[] bytes = readAll(GraffitiImageLoader.openStream(imageUrlOrPath));
+                if (bytes.length == 0) return;
 
-		// Теперь ImageIO работает с идеальным ARGB изображением и никогда не выдаст "Bad PNG Signature"
-		ByteArrayOutputStream baos = new ByteArrayOutputStream();
-		ImageIO.write(cleanImg, "png", baos);
-		
-		NativeImage canvas = NativeImage.read(baos.toByteArray());
+                BufferedImage firstForSize = ImageIO.read(new ByteArrayInputStream(bytes));
+                if (firstForSize != null) {
+                    originalWidth = firstForSize.getWidth();
+                    originalHeight = firstForSize.getHeight();
+                }
 
-		MinecraftClient.getInstance().execute(() -> {
-			NativeImageBackedTexture tex = new NativeImageBackedTexture(() -> "graffity", canvas);
-			textureId = Identifier.of("graffity", "preview_" + imageUrlOrPath.hashCode());
-			MinecraftClient.getInstance().getTextureManager().registerTexture(textureId, tex);
-			
-			if (keepAspect && originalWidth > 0 && originalHeight > 0) {
-				float aspect = (float) originalWidth / originalHeight;
-				if (aspect > 1) height = (int) (width / aspect);
-				else width = (int) (height * aspect);
-			}
-		});
-	}
+                boolean gif = GraffitiImageLoader.looksLikeGif(imageUrlOrPath, bytes);
+                final int previewRes = 512;
 
-	public void render(DrawContext context, boolean editMode) {
-		if (!isLoaded || textureId == null) return;
-		
-		int color = ((int)(this.alpha * 255) << 24) | 0x00FFFFFF;
-		int drawW = width, drawH = height;
-		
-		if (keepAspect && originalWidth > 0 && originalHeight > 0) {
-			float scale = Math.min((float) width / originalWidth, (float) height / originalHeight);
-			drawW = (int) (originalWidth * scale);
-			drawH = (int) (originalHeight * scale);
-		}
+                if (gif) {
+                    GraffitiImageLoader.GifData data =
+                            GraffitiImageLoader.decodeGif(new ByteArrayInputStream(bytes), previewRes);
+                    GraffitiImageLoader.onClient(() -> {
+                        if (disposed) {
+                            for (NativeImage ni : data.frames()) ni.close();
+                            return;
+                        }
+                        List<Identifier> frames = new ArrayList<>();
+                        for (int i = 0; i < data.frames().size(); i++) {
+                            Identifier loc = Identifier.of("graffity", "preview_gif_" + textureId.getPath() + "_" + i);
+                            GraffitiImageLoader.registerTexture(loc, data.frames().get(i));
+                            frames.add(loc);
+                        }
+                        animation = new AnimatedGraffitiData(frames, data.delaysMs());
+                        textureFrames.addAll(frames);
+                        isLoaded = true;
+                    });
+                } else {
+                    NativeImage img = GraffitiImageLoader.decodeStatic(new ByteArrayInputStream(bytes), previewRes);
+                    GraffitiImageLoader.onClient(() -> {
+                        if (disposed) { img.close(); return; }
+                        GraffitiImageLoader.registerTexture(textureId, img);
+                        textureFrames.add(textureId);
+                        isLoaded = true;
+                    });
+                }
+            } catch (Exception e) {
+                GraffitiMod.LOGGER.error("Failed to load preview: " + imageUrlOrPath, e);
+            }
+        }, "Graffity-Preview");
+        t.setDaemon(true);
+        t.start();
+    }
 
-		context.drawTexture(RenderPipelines.GUI_TEXTURED, textureId, x, y, 0.0f, 0.0f, drawW, drawH, drawW, drawH, color);
-	}
+    private static byte[] readAll(InputStream is) throws Exception {
+        try (is; ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
+            byte[] buf = new byte[65536];
+            int n;
+            while ((n = is.read(buf)) > 0) baos.write(buf, 0, n);
+            return baos.toByteArray();
+        }
+    }
 
-	public void cleanup() {
-		if (textureId != null) {
-			MinecraftClient.getInstance().getTextureManager().destroyTexture(textureId);
-			textureId = null;
-		}
-	}
+    public void render(DrawContext context, boolean editMode) {
+        if (!isLoaded) return;
+
+        Identifier tex = animation != null ? animation.getCurrentTexture() : textureId;
+        if (tex == null) return;
+
+        int color = ((int) (this.alpha * 255) << 24) | 0x00FFFFFF;
+        int drawW = width, drawH = height;
+
+        if (keepAspect && originalWidth > 0 && originalHeight > 0) {
+            float scale = Math.min((float) width / originalWidth, (float) height / originalHeight);
+            drawW = Math.max(1, (int) (originalWidth * scale));
+            drawH = Math.max(1, (int) (originalHeight * scale));
+        }
+
+        context.drawTexture(RenderPipelines.GUI_TEXTURED, tex, x, y, 0.0f, 0.0f, drawW, drawH, drawW, drawH, color);
+    }
+
+    public void cleanup() {
+        disposed = true;
+        MinecraftClient client = MinecraftClient.getInstance();
+        for (Identifier id : textureFrames) client.getTextureManager().destroyTexture(id);
+        textureFrames.clear();
+        animation = null;
+        isLoaded = false;
+    }
 }
